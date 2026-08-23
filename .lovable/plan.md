@@ -1,93 +1,73 @@
-# PharmaPilot AI — Phase 1: Frontend Architecture & Design System
+# PharmaPilot AI — Phase 1: Frontend Architecture & Design System (APPROVED)
 
-Frontend-only phase. No database, no auth backend, no APIs, no payments, no AI integration. All screens render realistic mock data from typed local fixtures.
+Frontend-only phase. No database, no auth backend, no APIs, no payments, no AI integration. Screens render typed mock fixtures; core workflows are interactive via local React state.
 
-## 1. Proposed frontend architecture
+## 1. Frontend architecture
 
-TanStack Start (React 19 + TypeScript) with file-based routing. Structure:
+TanStack Start (React 19 + TypeScript), file-based routing. No RSC experiments, no server functions in Phase 1.
 
 ```text
 src/
-  routes/                  # one file per screen (see section 2)
+  routes/                  # one file per screen
   components/
     layout/                # AppShell, OwnerBottomNav, OpsSidebar, ModeSwitcher, SyncStatusPill
-    ui/                    # existing shadcn primitives (Button, Card, Badge, Input...)
+    ui/                    # shadcn primitives (Button, Card, Badge, Input...)
     kpi/                   # KpiCard, MoneyStat, ReconciliationBadge
-    actions/               # ActionCard, ActionList (severity-ranked attention items)
-    pos/                   # ProductSearch, ProductResultRow, CartPanel, CartLineItem,
-                           # ServiceLineItem, UnitSelector, PaymentSummary
+    actions/               # ActionCard, ActionList
+    pos/                   # ProductResultRow, CartPanel, CartLineItem, ServiceLineItem, UnitSelector, PaymentSummary
     ai/                    # ChatThread, ChatComposer, VerifiedFactsBlock, RecommendationsBlock
     feedback/              # EmptyState, LoadingSkeleton, ErrorState
   lib/
-    types.ts               # Product, PackagingUnit, Batch, CartLine, ServiceItem, Action, Kpi...
-    money.ts               # ₦ formatting helpers (Intl.NumberFormat en-NG)
-    mock-data.ts           # typed fixtures: today's KPIs, products, batches, actions, AI demo
-    nav.ts                 # nav item definitions for both modes
-  styles.css               # design tokens (oklch), typography, semantic variants
+    types.ts               # Product, PackagingUnit, Batch, CartLine, ServiceItem, ActionItem (framework-light)
+    money.ts               # ₦ formatting, unit conversion helpers (framework-light)
+    mock-data.ts           # typed fixtures
+    app-mode.tsx           # mock role/mode context
+    nav.ts                 # nav definitions per mode
+  styles.css               # design tokens (oklch), typography
 ```
 
-Key decisions:
-- **Design tokens first.** Calm healthcare-business palette defined in `src/styles.css` (deep teal-green primary, warm neutral surfaces, restrained semantic colors: success/warning/danger/info). Inter loaded via `<link>` in `__root.tsx` head. No hardcoded colors in components — semantic tokens and shadcn variants only.
-- **Product rules encoded in types, not logic.** `PackagingUnit` (base unit + conversion, e.g. 1 tin = 100 tablets), `Batch` with expiry, `CartLine` discriminated union of `product` vs `service` lines so service revenue is always distinguishable in the UI. Ledger immutability, offline sync, and server-side roles are noted in types/comments but not implemented.
-- **Sync status** shown as a `SyncStatusPill` ("Online · Synced") in the shell — placeholder for future offline POS.
-- **AI is advisory**: the Ask AI screen visually separates VERIFIED FACTS from RECOMMENDATIONS with links like "View reconciliation records". Demo conversation is scripted mock data.
+Decisions:
+- Design tokens in `src/styles.css`: calm deep teal-green primary, warm neutral surfaces, amber/red reserved for warning/error. Inter via `<link>` in `__root.tsx`. Semantic tokens only in components.
+- Domain types + money/unit helpers are framework-light (no React/router imports) for later backend reuse.
+- Product rules encoded in types: `PackagingUnit` (base unit + conversion), `Batch` expiry, `CartLine` discriminated union (product vs service revenue distinguishable).
+- `SyncStatusPill` placeholder in shell for future offline POS. AI advisory only: VERIFIED FACTS visually separated from RECOMMENDATIONS.
 
-## 2. Routes / screens
+## 2. Routes
 
-Owner mode (mobile-first, bottom nav):
-| Route | Screen |
-|---|---|
-| `/` | Owner Home / Command Center (Today's Sales ₦386,400, Gross Margin ₦91,600, Est. Net Profit ₦67,300, cash status "₦12,400 short", stock/expiry summaries, Top Actions, Daily Business Brief) |
-| `/actions` | Action Center (Amoxicillin out of stock, 4 batches expiring ≤30 days, ₦18,000 variance to review...) |
-| `/inventory` | Inventory overview (stock levels, low/out-of-stock) |
-| `/money` | Money: sales vs service revenue, cash reconciliation status, expenses summary |
-| `/ask-ai` | Ask PharmaPilot AI conversational screen |
+Owner mode (mobile-first):
+- `/` Owner Home / Command Center (Sales ₦386,400, Gross Margin ₦91,600, Est. Net Profit ₦67,300, cash short ₦12,400, stock/expiry summaries, Top Actions, Daily Business Brief)
+- `/actions` Action Center (interactive Resolve / Snooze / Assign)
+- `/inventory` Owner inventory intelligence (summary, low/out of stock, expiry risk, value at risk, prioritized actions)
+- `/money` Money (product vs service revenue, reconciliation, expenses)
+- `/ask-ai` Ask PharmaPilot AI (scripted demo + suggested chips; unknown input clearly labeled mock)
 
-Operations mode (desktop/tablet-first, left sidebar):
-| Route | Screen |
-|---|---|
-| `/pos` | Sell / POS workspace (search, results, cart, unit selector, services, checkout) |
-| `/products` | Products list |
-| `/receive-stock` | Receive Stock |
-| `/inventory-ops` | Inventory (operations view) — *or share `/inventory`, see Q2* |
-| `/expiry` | Expiry Center (batch/expiry table) |
-| `/expenses` | Expenses |
-| `/close-day` | Close Day / Daily Reconciliation |
-| `/reports` | Reports |
-| `/users` | Users & Roles (placeholder, roles shown read-only) |
-| `/services` | Service Catalog (e.g. Pharmacist Consultation — ₦3,000) |
-| `/packaging` | Product Packaging Setup (units & conversions) |
+Operations mode:
+- `/pos` Sell / POS (search products+services, add to cart, unit selector, quantity, base-unit stock impact "Stock impact: -10 tablets / Remaining: 990", payment method, local success checkout)
+- `/products` Products list
+- `/receive-stock` Receive Stock (supplier/item/unit/qty/cost/batch/expiry entry, review with base-unit equivalents, confirm updates local state)
+- `/inventory-ops` Operational inventory (detailed table, batches, shelf location, stock count, adjustments, reorder)
+- `/expiry` Expiry Center
+- `/expenses` Expenses (local form + list update)
+- `/close-day` Close Day / Reconciliation (enter counted cash, live variance, short/balanced/over)
+- `/reports` Reports
+- `/users` Users & Roles (read-only placeholder)
+- `/services` Service Catalog
+- `/packaging` Product Packaging Setup
 
-Every route gets its own `head()` metadata (title, description, og tags). Root shell provides nav chrome around `<Outlet />`.
+Every route has its own `head()` metadata.
 
-## 3. Reusable component structure
+## 3. Mode & role model (user decision)
 
-- **Shell:** `AppShell` picks navigation by viewport — `OwnerBottomNav` (5 labeled tabs, large touch targets) on mobile; `OpsSidebar` (labeled, icon + text) on desktop. `ModeSwitcher` in the header toggles Owner/Operations context; `SyncStatusPill` always visible.
-- **KPI:** `KpiCard` (label, ₦ value, delta vs yesterday, optional status tint), `MoneyStat`, `ReconciliationBadge` (Balanced / Short ₦12,400 / Over).
-- **Actions:** `ActionCard` with severity badge (critical/warning/info), title, context line, CTA link.
-- **POS:** `ProductResultRow` (name, generic, strength, stock by unit, price), `UnitSelector` (tablet / strip / tin with conversion hint), `CartLineItem` for stock products, visually distinct `ServiceLineItem` (service icon + "Service" badge, no stock impact note), `PaymentSummary` with big checkout button.
-- **AI:** `VerifiedFactsBlock` (fact list w/ source links) vs `RecommendationsBlock` (numbered advice, "advisory only" note).
-- **Feedback:** `EmptyState`, `LoadingSkeleton`, `ErrorState` used consistently on all placeholder screens.
+Mode is a user/context concept, NOT viewport-derived.
+- Mock user/role selector in header: Owner/Admin, Pharmacist/Manager, Cashier/Assistant, Accountant.
+- Defaults: Owner → Owner mode `/`; Cashier → `/pos`; Pharmacist → Ops mode; Accountant → `/reports`.
+- Owner can explicitly switch Owner ↔ Operations mode.
+- Viewport only changes layout: bottom nav on mobile, left sidebar on desktop — both driven by current mode.
 
-## 4. Responsive strategy (mobile-first)
+## 4. Responsive strategy
 
-- Base styles target phones; `md:`/`lg:` scale up. Touch targets ≥44px, labeled nav everywhere.
-- Owner screens: single-column stacked KPI cards on mobile → 2–4 column grids on desktop.
-- POS: desktop = two-column workspace (search/results left, persistent cart right). Tablet = same but tighter. Mobile = results full-width with cart as a bottom sheet/badge button.
-- Sidebar collapses to the owner bottom nav pattern on small screens so every route stays reachable on mobile.
-- Tested mentally against 360px phones through 1440px desktops.
+Mobile-first; touch targets ≥44px; labeled nav. Owner screens stack → grids on desktop. POS: two-column workspace on desktop (search/results + persistent cart), mobile cart as bottom sheet. Ops mobile bottom nav: 4 primaries + Menu overlay for the rest.
 
-## 5. Questions & assumptions
+## 5. Scope guards
 
-1. **Brand color:** I assume a calm deep teal-green primary (trust/healthcare) with warm neutral surfaces and amber/red reserved for warnings. OK, or do you have brand colors?
-2. **One Inventory screen or two?** Owner bottom nav and ops sidebar both list Inventory. Assumption: a single `/inventory` route that adapts its layout per device, keeping the route count down. Confirm or I'll split them.
-3. **Mode switching:** Assumption — the app opens in Owner mode on `/`; a header switcher jumps to Operations (opens `/pos`). On desktop the sidebar shows all ops screens; owner screens remain reachable. Confirm.
-4. **Mock AI:** The Ask AI screen will be a scripted demo conversation (no real model). Typing anything replays the "Why is cash short today?" example. OK for phase 1?
-5. **Scope guard:** No real forms will submit — Receive Stock, Expenses, Close Day etc. render full UI with mock data but actions are inert (toast: "Backend coming in phase 2"). Confirm that's the right depth.
-
-## Technical details
-
-- Tailwind v4 tokens in `src/styles.css` using oklch; shadcn variants extended (e.g. Button `hero`/`checkout` variants) rather than ad-hoc classes.
-- ₦ formatting via `Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 })`.
-- No new heavy dependencies; icons via `lucide-react`; toasts via `sonner` (mounted once in `__root.tsx`).
-- `createFileRoute` paths will match filenames exactly; `routeTree.gen.ts` left to the generator.
+No Supabase/schema/Edge Functions/auth/payments/AI APIs/production server logic. No publish. Checkout, Receive Stock, Expenses, Close Day, Action Center update local mock state only.

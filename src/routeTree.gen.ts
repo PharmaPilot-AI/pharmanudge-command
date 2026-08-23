@@ -10,33 +10,232 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as AskAiRouteImport } from './routes/ask-ai'
+import { Route as CloseDayRouteImport } from './routes/close-day'
+import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as ExpiryRouteImport } from './routes/expiry'
+import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as InventoryOpsRouteImport } from './routes/inventory-ops'
+import { Route as MoneyRouteImport } from './routes/money'
+import { Route as PackagingRouteImport } from './routes/packaging'
+import { Route as PosRouteImport } from './routes/pos'
+import { Route as ProductsRouteImport } from './routes/products'
+import { Route as ReceiveStockRouteImport } from './routes/receive-stock'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ServicesRouteImport } from './routes/services'
+import { Route as UsersRouteImport } from './routes/users'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActionsRoute = ActionsRouteImport.update({
+  id: '/actions',
+  path: '/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AskAiRoute = AskAiRouteImport.update({
+  id: '/ask-ai',
+  path: '/ask-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CloseDayRoute = CloseDayRouteImport.update({
+  id: '/close-day',
+  path: '/close-day',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpensesRoute = ExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpiryRoute = ExpiryRouteImport.update({
+  id: '/expiry',
+  path: '/expiry',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryRoute = InventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InventoryOpsRoute = InventoryOpsRouteImport.update({
+  id: '/inventory-ops',
+  path: '/inventory-ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoneyRoute = MoneyRouteImport.update({
+  id: '/money',
+  path: '/money',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PackagingRoute = PackagingRouteImport.update({
+  id: '/packaging',
+  path: '/packaging',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PosRoute = PosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsRoute = ProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReceiveStockRoute = ReceiveStockRouteImport.update({
+  id: '/receive-stock',
+  path: '/receive-stock',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServicesRoute = ServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/ask-ai': typeof AskAiRoute
+  '/close-day': typeof CloseDayRoute
+  '/expenses': typeof ExpensesRoute
+  '/expiry': typeof ExpiryRoute
+  '/inventory': typeof InventoryRoute
+  '/inventory-ops': typeof InventoryOpsRoute
+  '/money': typeof MoneyRoute
+  '/packaging': typeof PackagingRoute
+  '/pos': typeof PosRoute
+  '/products': typeof ProductsRoute
+  '/receive-stock': typeof ReceiveStockRoute
+  '/reports': typeof ReportsRoute
+  '/services': typeof ServicesRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/ask-ai': typeof AskAiRoute
+  '/close-day': typeof CloseDayRoute
+  '/expenses': typeof ExpensesRoute
+  '/expiry': typeof ExpiryRoute
+  '/inventory': typeof InventoryRoute
+  '/inventory-ops': typeof InventoryOpsRoute
+  '/money': typeof MoneyRoute
+  '/packaging': typeof PackagingRoute
+  '/pos': typeof PosRoute
+  '/products': typeof ProductsRoute
+  '/receive-stock': typeof ReceiveStockRoute
+  '/reports': typeof ReportsRoute
+  '/services': typeof ServicesRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
+  '/ask-ai': typeof AskAiRoute
+  '/close-day': typeof CloseDayRoute
+  '/expenses': typeof ExpensesRoute
+  '/expiry': typeof ExpiryRoute
+  '/inventory': typeof InventoryRoute
+  '/inventory-ops': typeof InventoryOpsRoute
+  '/money': typeof MoneyRoute
+  '/packaging': typeof PackagingRoute
+  '/pos': typeof PosRoute
+  '/products': typeof ProductsRoute
+  '/receive-stock': typeof ReceiveStockRoute
+  '/reports': typeof ReportsRoute
+  '/services': typeof ServicesRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/actions'
+    | '/ask-ai'
+    | '/close-day'
+    | '/expenses'
+    | '/expiry'
+    | '/inventory'
+    | '/inventory-ops'
+    | '/money'
+    | '/packaging'
+    | '/pos'
+    | '/products'
+    | '/receive-stock'
+    | '/reports'
+    | '/services'
+    | '/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/actions'
+    | '/ask-ai'
+    | '/close-day'
+    | '/expenses'
+    | '/expiry'
+    | '/inventory'
+    | '/inventory-ops'
+    | '/money'
+    | '/packaging'
+    | '/pos'
+    | '/products'
+    | '/receive-stock'
+    | '/reports'
+    | '/services'
+    | '/users'
+  id:
+    | '__root__'
+    | '/'
+    | '/actions'
+    | '/ask-ai'
+    | '/close-day'
+    | '/expenses'
+    | '/expiry'
+    | '/inventory'
+    | '/inventory-ops'
+    | '/money'
+    | '/packaging'
+    | '/pos'
+    | '/products'
+    | '/receive-stock'
+    | '/reports'
+    | '/services'
+    | '/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActionsRoute: typeof ActionsRoute
+  AskAiRoute: typeof AskAiRoute
+  CloseDayRoute: typeof CloseDayRoute
+  ExpensesRoute: typeof ExpensesRoute
+  ExpiryRoute: typeof ExpiryRoute
+  InventoryRoute: typeof InventoryRoute
+  InventoryOpsRoute: typeof InventoryOpsRoute
+  MoneyRoute: typeof MoneyRoute
+  PackagingRoute: typeof PackagingRoute
+  PosRoute: typeof PosRoute
+  ProductsRoute: typeof ProductsRoute
+  ReceiveStockRoute: typeof ReceiveStockRoute
+  ReportsRoute: typeof ReportsRoute
+  ServicesRoute: typeof ServicesRoute
+  UsersRoute: typeof UsersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +247,131 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/actions': {
+      id: '/actions'
+      path: '/actions'
+      fullPath: '/actions'
+      preLoaderRoute: typeof ActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ask-ai': {
+      id: '/ask-ai'
+      path: '/ask-ai'
+      fullPath: '/ask-ai'
+      preLoaderRoute: typeof AskAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/close-day': {
+      id: '/close-day'
+      path: '/close-day'
+      fullPath: '/close-day'
+      preLoaderRoute: typeof CloseDayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expenses': {
+      id: '/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof ExpensesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expiry': {
+      id: '/expiry'
+      path: '/expiry'
+      fullPath: '/expiry'
+      preLoaderRoute: typeof ExpiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory': {
+      id: '/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory-ops': {
+      id: '/inventory-ops'
+      path: '/inventory-ops'
+      fullPath: '/inventory-ops'
+      preLoaderRoute: typeof InventoryOpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/money': {
+      id: '/money'
+      path: '/money'
+      fullPath: '/money'
+      preLoaderRoute: typeof MoneyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/packaging': {
+      id: '/packaging'
+      path: '/packaging'
+      fullPath: '/packaging'
+      preLoaderRoute: typeof PackagingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pos': {
+      id: '/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof PosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products': {
+      id: '/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof ProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/receive-stock': {
+      id: '/receive-stock'
+      path: '/receive-stock'
+      fullPath: '/receive-stock'
+      preLoaderRoute: typeof ReceiveStockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/services': {
+      id: '/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof ServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActionsRoute: ActionsRoute,
+  AskAiRoute: AskAiRoute,
+  CloseDayRoute: CloseDayRoute,
+  ExpensesRoute: ExpensesRoute,
+  ExpiryRoute: ExpiryRoute,
+  InventoryRoute: InventoryRoute,
+  InventoryOpsRoute: InventoryOpsRoute,
+  MoneyRoute: MoneyRoute,
+  PackagingRoute: PackagingRoute,
+  PosRoute: PosRoute,
+  ProductsRoute: ProductsRoute,
+  ReceiveStockRoute: ReceiveStockRoute,
+  ReportsRoute: ReportsRoute,
+  ServicesRoute: ServicesRoute,
+  UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
