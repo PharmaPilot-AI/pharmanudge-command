@@ -10,20 +10,225 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
-      [_ in never]: never
+      packaging_units: {
+        Row: {
+          base_units_per_unit: number
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          price: number
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_units_per_unit: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          price: number
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_units_per_unit?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          price?: number
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "packaging_units_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pharmacies: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pharmacy_members: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          pharmacy_id: string
+          role: Database["public"]["Enums"]["pharmacy_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          pharmacy_id: string
+          role: Database["public"]["Enums"]["pharmacy_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          pharmacy_id?: string
+          role?: Database["public"]["Enums"]["pharmacy_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pharmacy_members_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          barcode: string | null
+          base_unit_label: string
+          category: string
+          cost_per_base_unit: number
+          created_at: string
+          generic_name: string
+          id: string
+          is_active: boolean
+          name: string
+          pharmacy_id: string
+          shelf_location: string
+          updated_at: string
+        }
+        Insert: {
+          barcode?: string | null
+          base_unit_label: string
+          category?: string
+          cost_per_base_unit?: number
+          created_at?: string
+          generic_name?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          pharmacy_id: string
+          shelf_location?: string
+          updated_at?: string
+        }
+        Update: {
+          barcode?: string | null
+          base_unit_label?: string
+          category?: string
+          cost_per_base_unit?: number
+          created_at?: string
+          generic_name?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          pharmacy_id?: string
+          shelf_location?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          duration_minutes: number | null
+          id: string
+          is_active: boolean
+          name: string
+          pharmacy_id: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          name: string
+          pharmacy_id: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          pharmacy_id?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_pharmacy_member: {
+        Args: { target_pharmacy_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      pharmacy_role: "owner" | "pharmacist" | "cashier" | "accountant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +355,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      pharmacy_role: ["owner", "pharmacist", "cashier", "accountant"],
+    },
   },
 } as const
