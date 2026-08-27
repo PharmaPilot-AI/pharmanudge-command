@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { FormEvent, useState } from "react";
 import { Stethoscope } from "lucide-react";
 import { toast } from "sonner";
@@ -8,8 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatNaira } from "@/lib/money";
-import { services as initialServices } from "@/lib/mock-data";
-import type { ServiceItem } from "@/lib/types";
+import { listServices } from "@/lib/data/services";
+import type { Tables } from "@/lib/supabase/database.types";
+
+const getServices = createServerFn({ method: "GET" }).handler(() => listServices());
 
 export const Route = createFileRoute("/services")({
   head: () => ({
@@ -21,6 +24,7 @@ export const Route = createFileRoute("/services")({
       { property: "og:type", content: "website" },
     ],
   }),
+  loader: () => getServices(),
   component: ServicesPage,
 });
 
@@ -28,7 +32,8 @@ let serviceSeq = 100;
 
 /** Service catalog — services generate revenue but never reduce inventory. */
 function ServicesPage() {
-  const [services, setServices] = useState<ServiceItem[]>(initialServices);
+  const initialServices = Route.useLoaderData();
+  const [services, setServices] = useState<Tables<"services">[]>(initialServices);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
 
@@ -43,9 +48,21 @@ function ServicesPage() {
       toast.error("Enter a valid price");
       return;
     }
+    const now = new Date().toISOString();
     setServices((prev) => [
       ...prev,
-      { id: `s${++serviceSeq}`, name: name.trim(), description: "Custom service", price: value, category: "Custom" },
+      {
+        id: `s${++serviceSeq}`,
+        pharmacy_id: "",
+        name: name.trim(),
+        description: "Custom service",
+        price: value,
+        category: "Custom",
+        duration_minutes: null,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+      },
     ]);
     setName("");
     setPrice("");
@@ -69,7 +86,7 @@ function ServicesPage() {
               <p className="truncate text-sm font-semibold">{s.name}</p>
               <p className="truncate text-xs text-muted-foreground">
                 {s.category}
-                {s.durationMinutes ? ` · ~${s.durationMinutes} min` : ""} · available in POS
+                {s.duration_minutes ? ` · ~${s.duration_minutes} min` : ""} · available in POS
               </p>
             </div>
             <p className="shrink-0 text-sm font-bold tabular-nums">{formatNaira(s.price)}</p>
