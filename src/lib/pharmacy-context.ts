@@ -38,3 +38,16 @@ export async function getPharmacyContext(
     role: membership.role,
   };
 }
+
+/**
+ * Same resolution as getPharmacyContext(), but throws instead of returning
+ * null. Use this where a missing/ambiguous pharmacy context must propagate
+ * as a failure rather than be silently treated as "no data".
+ */
+export async function requirePharmacyContext(
+  client?: SupabaseClient<Database>,
+): Promise<PharmacyContext> {
+  const ctx = await getPharmacyContext(client);
+  if (!ctx) throw new Error("No active pharmacy membership for the current user.");
+  return ctx;
+}
