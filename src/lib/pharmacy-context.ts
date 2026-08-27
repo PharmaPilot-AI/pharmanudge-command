@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { supabase } from "./supabase/client";
+import { createServerSupabaseClient } from "./supabase/server";
 import type { Database } from "./supabase/database.types";
 
 export interface PharmacyContext {
@@ -17,7 +17,7 @@ export interface PharmacyContext {
  * never uses service-role credentials.
  */
 export async function getPharmacyContext(
-  client: SupabaseClient<Database> = supabase,
+  client: SupabaseClient<Database> = createServerSupabaseClient(),
 ): Promise<PharmacyContext | null> {
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData.user) return null;
