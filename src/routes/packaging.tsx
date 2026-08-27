@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FormEvent, useMemo, useState } from "react";
+import { createServerFn, useServerFn } from "@tanstack/react-start";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Layers } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -15,8 +16,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatNaira } from "@/lib/money";
-import { products } from "@/lib/mock-data";
-import type { PackagingUnit } from "@/lib/types";
+import { listProducts } from "@/lib/data/products";
+import { listPackagingUnitsForProduct } from "@/lib/data/packaging-units";
+import type { Tables } from "@/lib/supabase/database.types";
+
+const getProducts = createServerFn({ method: "GET" }).handler(() => listProducts());
+
+const getPackagingUnits = createServerFn({ method: "GET" })
+  .validator((productId: string) => productId)
+  .handler(({ data: productId }) => listPackagingUnitsForProduct(productId));
 
 export const Route = createFileRoute("/packaging")({
   head: () => ({
@@ -28,6 +36,7 @@ export const Route = createFileRoute("/packaging")({
       { property: "og:type", content: "website" },
     ],
   }),
+  loader: () => getProducts(),
   component: PackagingPage,
 });
 
@@ -38,14 +47,36 @@ let unitSeq = 100;
  * units are conversions on top (1 tin = 100 tablets).
  */
 function PackagingPage() {
-  const [productId, setProductId] = useState(products[0]!.id);
-  const [extraUnits, setExtraUnits] = useState<Record<string, PackagingUnit[]>>({});
+  const products = Route.useLoaderData();
+  const getPackagingUnitsFn = useServerFn(getPackagingUnits);
+
+  const [productId, setProductId] = useState(products[0]?.id ?? "");
+  const [units, setUnits] = useState<Tables<"packaging_units">[]>([]);
+  const [isLoadingUnits, setIsLoadingUnits] = useState(true);
+  const [extraUnits, setExtraUnits] = useState<Record<string, Tables<"packaging_units">[]>>({});
   const [label, setLabel] = useState("");
   const [perBase, setPerBase] = useState("");
   const [price, setPrice] = useState("");
 
-  const product = useMemo(() => products.find((p) => p.id === productId)!, [productId]);
-  const units = [...product.units, ...(extraUnits[productId] ?? [])];
+  const product = useMemo(() => products.find((p) => p.id === productId), [products, productId]);
+
+  useEffect(() => {
+    if (!productId) return;
+    let cancelled = false;
+    setIsLoadingUnits(true);
+    getPackagingUnitsFn({ data: productId })
+      .then((data) => {
+        if (!cancelled) setUnits(data);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingUnits(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, getPackagingUnitsFn]);
+
+  const allUnits = [...units, ...(extraUnits[productId] ?? [])];
 
   const addUnit = (e: FormEvent) => {
     e.preventDefault();
@@ -63,11 +94,21 @@ function PackagingPage() {
       toast.error("Enter a valid price");
       return;
     }
+    const now = new Date().toISOString();
     setExtraUnits((prev) => ({
       ...prev,
       [productId]: [
         ...(prev[productId] ?? []),
-        { id: `u${++unitSeq}`, label: label.trim(), baseUnitsPerUnit: conv, price: value },
+        {
+          id: `u${++unitSeq}`,
+          product_id: productId,
+          label: label.trim(),
+          base_units_per_unit: conv,
+          price: value,
+          is_active: true,
+          created_at: now,
+          updated_at: now,
+        },
       ],
     }));
     setLabel("");
@@ -75,6 +116,18 @@ function PackagingPage() {
     setPrice("");
     toast.success("Selling unit added locally (Phase 1 mock)");
   };
+
+  if (!product) {
+    return (
+      <div className="flex max-w-3xl flex-col gap-5">
+        <PageHeader
+          title="Product Packaging Setup"
+          description="Sell in tablets, strips or tins — inventory always counts base units."
+        />
+        <p className="text-sm text-muted-foreground">No products found for this pharmacy yet.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex max-w-3xl flex-col gap-5">
@@ -87,9 +140,9 @@ function PackagingPage() {
         <Layers className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
         <p>
           Base-unit model: {product.name} is stocked as{" "}
-          <span className="font-medium text-foreground">{product.baseUnitLabel}s</span>. Selling
+          <span className="font-medium text-foreground">{product.base_unit_label}s</span>. Selling
           units are conversions on top, so a sale of 1 tin always deducts exactly 100{" "}
-          {product.baseUnitLabel}s.
+          {product.base_unit_label}s.
         </p>
       </div>
 
@@ -110,17 +163,22 @@ function PackagingPage() {
           <CardTitle className="text-sm font-semibold">Selling units for {product.name}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          {units.map((u) => (
-            <div key={u.id} className="flex items-center gap-3 rounded-lg border bg-background p-3 text-sm">
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">{u.label}</p>
-                <p className="text-xs tabular-nums text-muted-foreground">
-                  = {u.baseUnitsPerUnit} {product.baseUnitLabel}{u.baseUnitsPerUnit === 1 ? "" : "s"}
-                </p>
+          {isLoadingUnits ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : (
+            allUnits.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 rounded-lg border bg-background p-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{u.label}</p>
+                  <p className="text-xs tabular-nums text-muted-foreground">
+                    = {u.base_units_per_unit} {product.base_unit_label}
+                    {u.base_units_per_unit === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <p className="font-semibold tabular-nums">{formatNaira(u.price)}</p>
               </div>
-              <p className="font-semibold tabular-nums">{formatNaira(u.price)}</p>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
 
@@ -135,7 +193,7 @@ function PackagingPage() {
               <Input id="unit-label" placeholder="e.g. Sachet of 4" value={label} onChange={(e) => setLabel(e.target.value)} className="h-11" />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="unit-per">= how many {product.baseUnitLabel}s?</Label>
+              <Label htmlFor="unit-per">= how many {product.base_unit_label}s?</Label>
               <Input id="unit-per" type="number" min={1} inputMode="numeric" placeholder="e.g. 4" value={perBase} onChange={(e) => setPerBase(e.target.value)} className="h-11 tabular-nums" />
             </div>
             <div className="flex flex-col gap-1.5">
