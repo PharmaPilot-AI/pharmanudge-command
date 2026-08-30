@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { FormEvent, useState } from "react";
 import { Stethoscope } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatNaira } from "@/lib/money";
 import { listServices } from "@/lib/data/services";
-import type { Tables } from "@/lib/supabase/database.types";
+import { createServiceMutation } from "@/lib/data/validation";
 
 const getServices = createServerFn({ method: "GET" }).handler(() => listServices());
 
@@ -18,9 +18,16 @@ export const Route = createFileRoute("/services")({
   head: () => ({
     meta: [
       { title: "Service Catalog — PharmaPilot AI" },
-      { name: "description", content: "Non-stock services like consultations and tests. Services earn revenue without touching inventory." },
+      {
+        name: "description",
+        content:
+          "Non-stock services like consultations and tests. Services earn revenue without touching inventory.",
+      },
       { property: "og:title", content: "Service Catalog — PharmaPilot AI" },
-      { property: "og:description", content: "Non-stock services that earn revenue without touching inventory." },
+      {
+        property: "og:description",
+        content: "Non-stock services that earn revenue without touching inventory.",
+      },
       { property: "og:type", content: "website" },
     ],
   }),
@@ -28,16 +35,16 @@ export const Route = createFileRoute("/services")({
   component: ServicesPage,
 });
 
-let serviceSeq = 100;
-
 /** Service catalog — services generate revenue but never reduce inventory. */
 function ServicesPage() {
-  const initialServices = Route.useLoaderData();
-  const [services, setServices] = useState<Tables<"services">[]>(initialServices);
+  const services = Route.useLoaderData();
+  const router = useRouter();
+  const createService = useServerFn(createServiceMutation);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const addService = (e: FormEvent) => {
+  const addService = async (e: FormEvent) => {
     e.preventDefault();
     const value = Number.parseFloat(price);
     if (!name.trim()) {
@@ -48,25 +55,18 @@ function ServicesPage() {
       toast.error("Enter a valid price");
       return;
     }
-    const now = new Date().toISOString();
-    setServices((prev) => [
-      ...prev,
-      {
-        id: `s${++serviceSeq}`,
-        pharmacy_id: "",
-        name: name.trim(),
-        description: "Custom service",
-        price: value,
-        category: "Custom",
-        duration_minutes: null,
-        is_active: true,
-        created_at: now,
-        updated_at: now,
-      },
-    ]);
-    setName("");
-    setPrice("");
-    toast.success("Service added locally (Phase 1 mock)");
+    setIsSubmitting(true);
+    try {
+      await createService({ data: { name: name.trim(), price: value } });
+      await router.invalidate();
+      setName("");
+      setPrice("");
+      toast.success("Service created");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create service");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -78,7 +78,10 @@ function ServicesPage() {
 
       <div className="flex flex-col gap-2.5">
         {services.map((s) => (
-          <div key={s.id} className="flex items-center gap-3 rounded-xl border border-dashed border-info/40 bg-info/5 p-3.5">
+          <div
+            key={s.id}
+            className="flex items-center gap-3 rounded-xl border border-dashed border-info/40 bg-info/5 p-3.5"
+          >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-info/10 text-info">
               <Stethoscope className="h-5 w-5" aria-hidden />
             </span>
@@ -99,16 +102,36 @@ function ServicesPage() {
           <CardTitle className="text-sm font-semibold">Add a service</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={addService} className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end">
+          <form
+            onSubmit={addService}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end"
+          >
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="svc-name">Service name</Label>
-              <Input id="svc-name" placeholder="e.g. Typhoid test (Widal)" value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+              <Input
+                id="svc-name"
+                placeholder="e.g. Typhoid test (Widal)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-11"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="svc-price">Price (₦)</Label>
-              <Input id="svc-price" type="number" min={0} inputMode="decimal" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} className="h-11 tabular-nums" />
+              <Input
+                id="svc-price"
+                type="number"
+                min={0}
+                inputMode="decimal"
+                placeholder="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="h-11 tabular-nums"
+              />
             </div>
-            <Button type="submit" className="h-11">Add service</Button>
+            <Button type="submit" className="h-11" disabled={isSubmitting}>
+              {isSubmitting ? "Adding…" : "Add service"}
+            </Button>
           </form>
         </CardContent>
       </Card>
