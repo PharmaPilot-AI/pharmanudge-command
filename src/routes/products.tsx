@@ -1,8 +1,18 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { FormEvent, useMemo, useState } from "react";
-import { PackagePlus, Search } from "lucide-react";
+import { PackagePlus, Pencil, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -16,7 +26,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listProducts } from "@/lib/data/products";
-import { createProductMutation } from "@/lib/data/validation";
+import {
+  createProductMutation,
+  deleteProductMutation,
+  updateProductMutation,
+} from "@/lib/data/validation";
+import type { Tables } from "@/lib/supabase/database.types";
 
 const getProducts = createServerFn({ method: "GET" }).handler(() => listProducts());
 
@@ -47,23 +62,49 @@ const emptyProductForm = {
   shelfLocation: "",
 };
 
-/** Product catalog browser. Editing arrives with Checkpoint 5. */
+/** Product catalog browser with create, edit, and delete. */
 function ProductsPage() {
   const products = Route.useLoaderData();
   const router = useRouter();
   const createProduct = useServerFn(createProductMutation);
+  const updateProduct = useServerFn(updateProductMutation);
+  const deleteProduct = useServerFn(deleteProductMutation);
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
 
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Tables<"products"> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState(emptyProductForm);
+
+  const [deletingProduct, setDeletingProduct] = useState<Tables<"products"> | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const updateField =
     (field: keyof typeof emptyProductForm) => (e: { target: { value: string } }) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
-  const handleAddProduct = async (e: FormEvent) => {
+  const openAddDialog = () => {
+    setEditingProduct(null);
+    setForm(emptyProductForm);
+    setIsFormOpen(true);
+  };
+
+  const openEditDialog = (product: Tables<"products">) => {
+    setEditingProduct(product);
+    setForm({
+      name: product.name,
+      genericName: product.generic_name,
+      category: product.category,
+      barcode: product.barcode ?? "",
+      baseUnitLabel: product.base_unit_label,
+      costPerBaseUnit: product.cost_per_base_unit ? String(product.cost_per_base_unit) : "",
+      shelfLocation: product.shelf_location,
+    });
+    setIsFormOpen(true);
+  };
+
+  const handleSubmitProduct = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.baseUnitLabel.trim()) {
       toast.error("Name and base unit are required");
@@ -71,27 +112,50 @@ function ProductsPage() {
     }
     setIsSubmitting(true);
     try {
-      await createProduct({
-        data: {
-          name: form.name.trim(),
-          base_unit_label: form.baseUnitLabel.trim(),
-          ...(form.genericName.trim() ? { generic_name: form.genericName.trim() } : {}),
-          ...(form.category.trim() ? { category: form.category.trim() } : {}),
-          ...(form.barcode.trim() ? { barcode: form.barcode.trim() } : {}),
-          ...(form.shelfLocation.trim() ? { shelf_location: form.shelfLocation.trim() } : {}),
-          ...(form.costPerBaseUnit.trim()
-            ? { cost_per_base_unit: Number(form.costPerBaseUnit) }
-            : {}),
-        },
-      });
+      const fields = {
+        name: form.name.trim(),
+        base_unit_label: form.baseUnitLabel.trim(),
+        ...(form.genericName.trim() ? { generic_name: form.genericName.trim() } : {}),
+        ...(form.category.trim() ? { category: form.category.trim() } : {}),
+        ...(form.barcode.trim() ? { barcode: form.barcode.trim() } : {}),
+        ...(form.shelfLocation.trim() ? { shelf_location: form.shelfLocation.trim() } : {}),
+        ...(form.costPerBaseUnit.trim()
+          ? { cost_per_base_unit: Number(form.costPerBaseUnit) }
+          : {}),
+      };
+      if (editingProduct) {
+        await updateProduct({ data: { id: editingProduct.id, ...fields } });
+      } else {
+        await createProduct({ data: fields });
+      }
       await router.invalidate();
       setForm(emptyProductForm);
-      setIsAddOpen(false);
-      toast.success("Product created");
+      setIsFormOpen(false);
+      setEditingProduct(null);
+      toast.success(editingProduct ? "Product updated" : "Product created");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create product");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Failed to ${editingProduct ? "update" : "create"} product`,
+      );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!deletingProduct) return;
+    setIsDeleting(true);
+    try {
+      await deleteProduct({ data: { id: deletingProduct.id } });
+      await router.invalidate();
+      setDeletingProduct(null);
+      toast.success("Product deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete product");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -113,19 +177,25 @@ function ProductsPage() {
         title="Products"
         description={`${products.length} products in the catalog.`}
         actions={
-          <Button size="sm" className="gap-1" onClick={() => setIsAddOpen(true)}>
+          <Button size="sm" className="gap-1" onClick={openAddDialog}>
             <PackagePlus className="h-4 w-4" aria-hidden />
             Add product
           </Button>
         }
       />
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog
+        open={isFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) setEditingProduct(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add product</DialogTitle>
+            <DialogTitle>{editingProduct ? "Edit product" : "Add product"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddProduct} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <form onSubmit={handleSubmitProduct} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="add-product-name">Name</Label>
               <Input
@@ -194,12 +264,47 @@ function ProductsPage() {
             </div>
             <DialogFooter className="sm:col-span-2">
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating…" : "Create product"}
+                {isSubmitting
+                  ? editingProduct
+                    ? "Saving…"
+                    : "Creating…"
+                  : editingProduct
+                    ? "Save changes"
+                    : "Create product"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deletingProduct !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingProduct(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deletingProduct?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes this product and cannot be undone. Any packaging units
+              defined for this product will also be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDeleteProduct();
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="relative max-w-md">
         <Search
@@ -229,6 +334,26 @@ function ProductsPage() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{p.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{p.generic_name}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    aria-label={`Edit ${p.name}`}
+                    onClick={() => openEditDialog(p)}
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    aria-label={`Delete ${p.name}`}
+                    onClick={() => setDeletingProduct(p)}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </Button>
                 </div>
               </div>
               <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
