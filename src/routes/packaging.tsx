@@ -18,6 +18,7 @@ import {
 import { formatNaira } from "@/lib/money";
 import { listProducts } from "@/lib/data/products";
 import { listPackagingUnitsForProduct } from "@/lib/data/packaging-units";
+import { createPackagingUnitMutation } from "@/lib/data/validation";
 import type { Tables } from "@/lib/supabase/database.types";
 
 const getProducts = createServerFn({ method: "GET" }).handler(() => listProducts());
@@ -30,17 +31,22 @@ export const Route = createFileRoute("/packaging")({
   head: () => ({
     meta: [
       { title: "Product Packaging Setup — PharmaPilot AI" },
-      { name: "description", content: "Define selling units per product — tablets, strips, tins — all converting to base units." },
+      {
+        name: "description",
+        content:
+          "Define selling units per product — tablets, strips, tins — all converting to base units.",
+      },
       { property: "og:title", content: "Product Packaging Setup — PharmaPilot AI" },
-      { property: "og:description", content: "Define selling units per product on the base-unit model." },
+      {
+        property: "og:description",
+        content: "Define selling units per product on the base-unit model.",
+      },
       { property: "og:type", content: "website" },
     ],
   }),
   loader: () => getProducts(),
   component: PackagingPage,
 });
-
-let unitSeq = 100;
 
 /**
  * Packaging setup: products are stocked in base units; packaging/selling
@@ -49,14 +55,15 @@ let unitSeq = 100;
 function PackagingPage() {
   const products = Route.useLoaderData();
   const getPackagingUnitsFn = useServerFn(getPackagingUnits);
+  const createPackagingUnit = useServerFn(createPackagingUnitMutation);
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [units, setUnits] = useState<Tables<"packaging_units">[]>([]);
   const [isLoadingUnits, setIsLoadingUnits] = useState(true);
-  const [extraUnits, setExtraUnits] = useState<Record<string, Tables<"packaging_units">[]>>({});
   const [label, setLabel] = useState("");
   const [perBase, setPerBase] = useState("");
   const [price, setPrice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const product = useMemo(() => products.find((p) => p.id === productId), [products, productId]);
 
@@ -76,9 +83,21 @@ function PackagingPage() {
     };
   }, [productId, getPackagingUnitsFn]);
 
-  const allUnits = [...units, ...(extraUnits[productId] ?? [])];
+  /** Re-fetches this product's packaging units from their actual data
+   * source (a per-product server call, not the route loader). */
+  const refreshUnits = async () => {
+    setIsLoadingUnits(true);
+    try {
+      const data = await getPackagingUnitsFn({ data: productId });
+      setUnits(data);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load packaging units");
+    } finally {
+      setIsLoadingUnits(false);
+    }
+  };
 
-  const addUnit = (e: FormEvent) => {
+  const addUnit = async (e: FormEvent) => {
     e.preventDefault();
     const conv = Number.parseInt(perBase, 10);
     const value = Number.parseFloat(price);
@@ -94,27 +113,26 @@ function PackagingPage() {
       toast.error("Enter a valid price");
       return;
     }
-    const now = new Date().toISOString();
-    setExtraUnits((prev) => ({
-      ...prev,
-      [productId]: [
-        ...(prev[productId] ?? []),
-        {
-          id: `u${++unitSeq}`,
+    setIsSubmitting(true);
+    try {
+      await createPackagingUnit({
+        data: {
           product_id: productId,
           label: label.trim(),
           base_units_per_unit: conv,
           price: value,
-          is_active: true,
-          created_at: now,
-          updated_at: now,
         },
-      ],
-    }));
-    setLabel("");
-    setPerBase("");
-    setPrice("");
-    toast.success("Selling unit added locally (Phase 1 mock)");
+      });
+      await refreshUnits();
+      setLabel("");
+      setPerBase("");
+      setPrice("");
+      toast.success("Selling unit created");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create selling unit");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!product) {
@@ -149,10 +167,14 @@ function PackagingPage() {
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="pkg-product">Product</Label>
         <Select value={productId} onValueChange={setProductId}>
-          <SelectTrigger id="pkg-product" className="h-11 max-w-md"><SelectValue /></SelectTrigger>
+          <SelectTrigger id="pkg-product" className="h-11 max-w-md">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -166,8 +188,11 @@ function PackagingPage() {
           {isLoadingUnits ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : (
-            allUnits.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 rounded-lg border bg-background p-3 text-sm">
+            units.map((u) => (
+              <div
+                key={u.id}
+                className="flex items-center gap-3 rounded-lg border bg-background p-3 text-sm"
+              >
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{u.label}</p>
                   <p className="text-xs tabular-nums text-muted-foreground">
@@ -190,17 +215,43 @@ function PackagingPage() {
           <form onSubmit={addUnit} className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="unit-label">Unit name</Label>
-              <Input id="unit-label" placeholder="e.g. Sachet of 4" value={label} onChange={(e) => setLabel(e.target.value)} className="h-11" />
+              <Input
+                id="unit-label"
+                placeholder="e.g. Sachet of 4"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                className="h-11"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="unit-per">= how many {product.base_unit_label}s?</Label>
-              <Input id="unit-per" type="number" min={1} inputMode="numeric" placeholder="e.g. 4" value={perBase} onChange={(e) => setPerBase(e.target.value)} className="h-11 tabular-nums" />
+              <Input
+                id="unit-per"
+                type="number"
+                min={1}
+                inputMode="numeric"
+                placeholder="e.g. 4"
+                value={perBase}
+                onChange={(e) => setPerBase(e.target.value)}
+                className="h-11 tabular-nums"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="unit-price">Price (₦)</Label>
-              <Input id="unit-price" type="number" min={0} inputMode="decimal" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value)} className="h-11 tabular-nums" />
+              <Input
+                id="unit-price"
+                type="number"
+                min={0}
+                inputMode="decimal"
+                placeholder="0"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="h-11 tabular-nums"
+              />
             </div>
-            <Button type="submit" className="h-11">Add unit</Button>
+            <Button type="submit" className="h-11" disabled={isSubmitting}>
+              {isSubmitting ? "Creating…" : "Add unit"}
+            </Button>
           </form>
         </CardContent>
       </Card>
