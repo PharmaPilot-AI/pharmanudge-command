@@ -13,15 +13,19 @@ import type { AppMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /**
- * Mock user/role selector + Owner↔Operations mode switch.
- * Real auth replaces this in Phase 2; mode is a user context choice,
- * never inferred from screen size.
+ * Real authenticated identity display + Owner↔Operations mode switch. The
+ * mock user selector below is reachable only pre-authentication (e.g. on
+ * /login), when useAppMode() reports no real identity — selectMember is
+ * null once a real session is active, and this component never falls back
+ * to it in that case. Mode is a user context choice, never inferred from
+ * screen size.
  */
 export function ModeSwitcher() {
   const navigate = useNavigate();
   const { member, mode, canSwitchMode, selectMember, switchMode } = useAppMode();
 
   const handleMemberChange = (memberId: string) => {
+    if (!selectMember) return;
     const home = selectMember(memberId);
     navigate({ to: home as "/" });
   };
@@ -63,30 +67,45 @@ export function ModeSwitcher() {
         </span>
       )}
 
-      <Select value={member.id} onValueChange={handleMemberChange}>
-        <SelectTrigger
-          className="h-9 w-auto min-w-0 gap-2 rounded-lg px-2.5 text-xs sm:text-sm"
-          aria-label="Switch mock user"
+      {selectMember ? (
+        <Select value={member.id} onValueChange={handleMemberChange}>
+          <SelectTrigger
+            className="h-9 w-auto min-w-0 gap-2 rounded-lg px-2.5 text-xs sm:text-sm"
+            aria-label="Switch mock user"
+          >
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+              {member.initials}
+            </span>
+            <span className="hidden max-w-28 truncate sm:inline">
+              <SelectValue />
+            </span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {teamMembers.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                <span className="flex flex-col">
+                  <span className="font-medium">{m.name}</span>
+                  <span className="text-xs text-muted-foreground">{m.roleLabel}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <div
+          className="flex h-9 w-auto min-w-0 items-center gap-2 rounded-lg px-2.5 text-xs sm:text-sm"
+          aria-label="Signed in identity"
         >
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
             {member.initials}
           </span>
-          <span className="hidden max-w-28 truncate sm:inline">
-            <SelectValue />
+          <span className="hidden max-w-40 truncate sm:inline">
+            {member.name}
+            <span className="text-muted-foreground"> · {member.roleLabel}</span>
           </span>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        </SelectTrigger>
-        <SelectContent align="end">
-          {teamMembers.map((m) => (
-            <SelectItem key={m.id} value={m.id}>
-              <span className="flex flex-col">
-                <span className="font-medium">{m.name}</span>
-                <span className="text-xs text-muted-foreground">{m.roleLabel}</span>
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        </div>
+      )}
     </div>
   );
 }
