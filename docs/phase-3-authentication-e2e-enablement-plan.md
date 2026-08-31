@@ -72,9 +72,23 @@ These seven decisions were explicitly reviewed and approved before this revision
 are the authoritative resolution for every checkpoint below; where any other section of
 this document appears to conflict with one of these, this list controls.
 
-1. **Session storage:** an encrypted, sealed session cookie (AES-256-GCM, key derived
-   from `SESSION_SECRET`, Node's built-in `crypto` only). No HMAC-only/signed-but-readable
-   cookie, and no new database/KV session store, in Phase 3.
+1. **Session storage:** an encrypted, sealed session cookie, sealed/unsealed via the
+   already-installed framework's native session primitive — `sealSession`/
+   `unsealSession`/`getSession`/`updateSession`/`clearSession`, importable from
+   `@tanstack/react-start/server` (re-exported from `h3`, a transitive dependency of
+   `@tanstack/start-server-core`, itself already a dependency of `@tanstack/react-start`
+   `1.168.32`, which this project already depends on — **no new package**), keyed by
+   `SESSION_SECRET` as the seal `password`. Verified directly from the installed
+   package's compiled source (`node_modules/h3-v2/dist/h3-*.mjs`): sealing is an
+   encrypt-then-MAC construction — AES-256-CBC encryption plus HMAC-SHA256 integrity,
+   each key independently derived from `SESSION_SECRET` via PBKDF2 with a random salt per
+   seal — not a bare HMAC signature, and not literal AES-256-GCM as originally specified;
+   it provides equivalent authenticated-encryption guarantees (confidentiality +
+   tamper-evidence) through a different, independently-audited, widely-used construction
+   (the same "Iron" sealed-token format used by `@hapi/iron`/`iron-session`) that this
+   project does not need to implement or maintain itself. No HMAC-only/signed-but-readable
+   cookie (still true — the payload is encrypted, not merely signed), and no new
+   database/KV session store, in Phase 3.
 2. **Token location:** Supabase tokens are server-only. No parallel browser/`localStorage`
    Supabase session is created; the browser never directly holds or manages raw Supabase
    access/refresh tokens. `src/lib/supabase/client.ts` remains unused, as it is today.
@@ -122,7 +136,14 @@ this document appears to conflict with one of these, this list controls.
    insufficient length must throw, not silently substitute a generated value.
 5. The session cookie is `httpOnly`, `sameSite: "lax"`, `secure: true` in production
    (`false` only for local `http://` development), and scoped to the application's root
-   path (`/`), and its payload is encrypted (Decision 1) — not merely signed.
+   path (`/`), and its payload is encrypted (Decision 1) — not merely signed. These four
+   flags must be passed **explicitly** in every `SessionConfig.cookie` call — verified
+   from the installed library's source that its own built-in default
+   (`DEFAULT_SESSION_COOKIE = { path: "/", secure: true, httpOnly: true }`) has **no**
+   `sameSite` default at all, and defaults `secure: true` unconditionally (not
+   NODE_ENV-aware) — relying on the library's defaults alone would silently omit
+   `sameSite` and would break local `http://` development, so this project's own explicit
+   `cookie` config is the sole source of truth for all four flags, not a fallback.
 6. No service-role/admin Supabase credential is introduced anywhere, for any reason,
    including live testing or user provisioning scripts (Phase 2B invariant, carried
    forward unchanged). User provisioning uses the Supabase **Dashboard** or the
@@ -192,35 +213,65 @@ browser anon-key client) is **not** used for authentication in this design — i
 unused, exactly as it is today, avoiding any browser-localStorage-vs-server-cookie
 dual-source-of-truth problem entirely.
 
+**Verified session primitive** (from the installed `@tanstack/react-start` `1.168.32` →
+`@tanstack/start-server-core` → `h3-v2` chain, all already-installed transitive
+dependencies — confirmed by reading the compiled source, not assumed): `SessionConfig`
+accepts `{ password, name?, maxAge?, cookie?, sessionHeader?, seal?, crypto?,
+generateId? }`. `password` (our `SESSION_SECRET`) has a **library-enforced minimum of 32
+characters** — `generateKey()` throws `"Password string too short (min 32 characters
+required)"` below that, and both `seal()`/`unseal()` throw `"Empty password"` if it's
+missing — independently matching (and now doubly enforcing, alongside our own Zod check
+in `env.ts`) this plan's existing ≥32-char requirement. `getSession`/`useSession`,
+verified from source, have a side effect worth designing around: calling them on a
+request with no existing valid session cookie **auto-creates a new empty session and
+writes a fresh Set-Cookie**, even for anonymous/unauthenticated requests. To avoid setting
+a cookie on every anonymous page view, per-request *read* access therefore uses the
+lower-level, side-effect-free pair `getCookie(name)` + `unsealSession(config, value)`
+directly — never bare `getSession`/`useSession` for reads. *Writes* (login, refresh
+rotation) use `updateSession(config, data)`, which seals and sets the cookie (via
+`setChunkedCookie`, which transparently splits the value across multiple cookies if it
+ever exceeds a single cookie's size limit — verified in source, no manual size handling
+needed). *Clearing* uses `clearSession(config)`, verified to delete the cookie
+(`Max-Age=0`) via `deleteChunkedCookie`.
+
 Flow:
 1. **Login** (`src/routes/login.tsx` → a `createServerFn` login action): the browser
    posts `{ email, password }` to a server function. The server function uses a
    plain anon-key Supabase client (no forwarded token — nobody is authenticated yet) to
    call `auth.signInWithPassword`. On success it receives Supabase's session object
-   (`access_token`, `refresh_token`, `expires_at`), encrypts it into the session cookie,
-   and returns only a success/failure result — never the raw tokens — to the browser.
-2. **Session cookie contents**: `{ access_token, refresh_token, expires_at }`,
-   JSON-serialized, then authenticated-encrypted with AES-256-GCM using a key derived
-   from `SESSION_SECRET` (via `crypto.scryptSync` or `crypto.createHash("sha256")` over
-   the secret — Node's built-in `crypto` module only, no new dependency, no new DB/KV
-   store). AES-GCM gives both confidentiality (the cookie value alone doesn't hand over
-   the live bearer tokens in cleartext) and integrity (tampered cookies fail to decrypt
-   and are treated as no session) in one primitive.
-3. **Per-request resolution**: a server-only helper decrypts the cookie, and if
-   `expires_at` is at or near expiry (or a call using the current access token fails with
-   401), calls `auth.refreshSession({ refresh_token })` using the anon-key client, then
-   **rewrites the cookie** with the rotated tokens (required — `config.toml` confirms
-   `enable_refresh_token_rotation = true`, so the old refresh token stops working after
-   one use). `createServerSupabaseClient()`'s existing `accessToken` parameter is used to
-   inject the resolved, valid access token — no change to that function's signature, only
-   to what supplies its default when no explicit token is passed.
-4. **Logout**: a server function reads the current session cookie, calls
-   `auth.signOut()` with that session so the refresh token is invalidated
-   server-side too (not just discarded locally), then clears the cookie
-   (`Max-Age=0`) regardless of whether `signOut()` succeeds.
-5. **Failed/invalid refresh**: treated identically to "no session" — the cookie is
-   cleared and the caller is unauthenticated for that request. Route protection
-   (Checkpoint 5) then redirects to `/login`.
+   (`access_token`, `refresh_token`, `expires_at`) and writes it into the session via
+   `updateSession(sessionConfig, { access_token, refresh_token, expires_at })` — sealing
+   and cookie-setting happen inside that one call — and returns only a success/failure
+   result — never the raw tokens — to the browser.
+2. **Session cookie contents**: `{ access_token, refresh_token, expires_at }`, sealed by
+   the verified framework-native primitive (encrypt-then-MAC: AES-256-CBC encryption +
+   HMAC-SHA256 integrity, each key PBKDF2-derived from `SESSION_SECRET` with a random
+   salt per seal — the "Iron" sealed-token format, not a bespoke implementation). No new
+   dependency, no new DB/KV store. Confidentiality (the cookie value alone doesn't hand
+   over the live bearer tokens in cleartext) and integrity (tampered/invalid cookies fail
+   to unseal and are treated as no session) both hold, matching invariant 5's "encrypted,
+   not merely signed" requirement via a different, verified construction than originally
+   specified.
+3. **Per-request resolution**: a server-only helper reads the cookie via `getCookie(name)`
+   and, if present, calls `unsealSession(sessionConfig, value)` (catching any throw —
+   missing/tampered/expired — and treating it as no session, never letting it propagate).
+   If the unsealed `expires_at` is at or near expiry (or a call using the current access
+   token fails with 401), calls `auth.refreshSession({ refresh_token })` using the
+   anon-key client, then **rewrites the session** via `updateSession(sessionConfig,
+   rotatedTokens)` (required — `config.toml` confirms `enable_refresh_token_rotation =
+   true`, so the old refresh token stops working after one use).
+   `createServerSupabaseClient()`'s existing `accessToken` parameter is used to inject the
+   resolved, valid access token — no change to that function's signature, only to what
+   supplies its default when no explicit token is passed.
+4. **Logout**: a server function reads the current session (via the same side-effect-free
+   read path), calls `auth.signOut()` with it if present so the refresh token is
+   invalidated server-side too (not just discarded locally), then calls
+   `clearSession(sessionConfig)` unconditionally regardless of whether `signOut()`
+   succeeds.
+5. **Failed/invalid unseal or refresh**: treated identically to "no session" — no session
+   data is used, and (for a failed refresh specifically) the session is actively cleared
+   via `clearSession(sessionConfig)`, so a corrupted/expired cookie doesn't linger. Route
+   protection (Checkpoint 5) then redirects to `/login`.
 
 This keeps `getPharmacyContext()`/`requirePharmacyContext()`
 (`src/lib/pharmacy-context.ts`) completely untouched — they already accept an injected
@@ -231,7 +282,14 @@ client they receive carries a real, refreshed access token.
 
 `src/lib/auth/`:
 - `src/lib/auth/env.ts` — `SESSION_SECRET` Zod schema, server-only guard.
-- `src/lib/auth/session.ts` — encrypt/decrypt + get/set/clear cookie helpers, server-only.
+- `src/lib/auth/session.ts` — thin wrapper around the framework-native `getCookie`/
+  `unsealSession`/`updateSession`/`clearSession` (from `@tanstack/react-start/server`):
+  `buildSessionConfig()` (the shared `SessionConfig`, `password: SESSION_SECRET`,
+  `name: "pharmapilot_session"`, explicit `cookie` flags per invariant 5),
+  `readSessionData()` (side-effect-free read:
+  `getCookie` + `unsealSession`, catching failure → `undefined`), `writeSessionData(data)`
+  (`updateSession` — seals + sets the cookie in one call), `clearSessionCookie()`
+  (`clearSession`). Server-only.
 - `src/lib/auth/actions.ts` — `loginMutation`/`logoutMutation` `createServerFn` wrappers.
 - `src/lib/auth/context.ts` — `resolveSessionUser()` helper used by the router guard and
   by `createServerSupabaseClient()`'s default resolution. It resolves session validity and
@@ -370,28 +428,45 @@ data, under its own labeled procedure (see below).
 
 ## Checkpoint 2 — Session secret & cookie primitives
 
-- **Objective:** server-only building blocks for an encrypted session cookie, with no
-  behavior wired to any route yet.
-- **Exact scope:** `SESSION_SECRET` validation, AES-256-GCM encrypt/decrypt, cookie
-  get/set/clear helpers.
+- **Objective:** server-only building blocks for a sealed session cookie built on the
+  framework's native session primitive, with no behavior wired to any route yet.
+- **Exact scope:** `SESSION_SECRET` validation, a shared `SessionConfig`, and
+  side-effect-free read / seal-and-write / clear helpers wrapping
+  `@tanstack/react-start/server`'s `getCookie`/`unsealSession`/`updateSession`/
+  `clearSession` (verified present and already installed — no new package; see
+  "Architecture: session mechanism" above for the verified API details).
 - **Expected files:**
   - `src/lib/auth/env.ts` (new) — Zod schema requiring `SESSION_SECRET` from
-    `process.env`, minimum length enforced (≥32 chars), `"@tanstack/react-start/server-only"`
-    guarded; throws on missing/short value, never generates a fallback.
-  - `src/lib/auth/session.ts` (new) — `encryptSession`/`decryptSession` (AES-256-GCM,
-    key derived from `SESSION_SECRET`), `getSessionCookie`/`setSessionCookie`/
-    `clearSessionCookie` using `@tanstack/react-start/server`'s cookie APIs. Cookie:
-    `httpOnly: true`, `sameSite: "lax"`, `secure: process.env.NODE_ENV === "production"`,
-    `path: "/"`.
+    `process.env`, minimum length enforced (≥32 chars — matching, and doubly enforced
+    alongside, the framework session library's own verified 32-char minimum), `
+    "@tanstack/react-start/server-only"` guarded; throws on missing/short value, never
+    generates a fallback.
+  - `src/lib/auth/session.ts` (new) — `buildSessionConfig()` (the shared `SessionConfig`:
+    `password` from `env.ts`'s `SESSION_SECRET`, `name: "pharmapilot_session"`, an outer
+    defensive `maxAge`, and an explicit `cookie` object — `httpOnly: true`, `sameSite: "lax"`,
+    `secure: process.env.NODE_ENV === "production"`, `path: "/"` — passed explicitly
+    because the library's own cookie defaults have no `sameSite` and an unconditional
+    `secure: true`, verified insufficient on their own per invariant 5);
+    `readSessionData()` (side-effect-free: `getCookie(name)` then `unsealSession(config,
+    value)` if present, catching any throw and returning `undefined` — deliberately never
+    calling `getSession`/`useSession` for reads, since those verified auto-create an empty
+    session and set a cookie for any request lacking one, including anonymous requests);
+    `writeSessionData(data)` (`updateSession(config, data)` — seals and sets the cookie in
+    one call); `clearSessionCookie()` (`clearSession(config)`).
   - `.env.example` (modify) — add a commented, empty `SESSION_SECRET=` line documenting
     its purpose and that it must never be `VITE_`-prefixed or committed with a real value.
 - **Security invariants:** 4, 5 (cookie flags + encryption), 6.
 - **Explicit exclusions:** no login/logout logic, no route wiring, no live testing, no new
-  database/KV session store (Decision 1).
-- **Acceptance criteria:** typecheck/build pass; round-trip encrypt→decrypt of a sample
-  payload verified in review; missing/short `SESSION_SECRET` demonstrably throws rather
-  than silently substituting a value.
-- **Verification requirements:** Gate A (typecheck, build, code review of the crypto
+  database/KV session store (Decision 1); no use of `getSession`/`useSession` for the
+  read path (Decision 1's verified side-effect concern above).
+- **Acceptance criteria:** typecheck/build pass; round-trip seal→unseal (via
+  `writeSessionData` followed by `readSessionData`, or directly via
+  `sealSession`/`unsealSession`) of a sample payload verified in review; missing/short
+  `SESSION_SECRET` demonstrably throws — both from `env.ts`'s own Zod check and,
+  independently, from the underlying library's own `"Password string too short"`/`"Empty
+  password"` checks — rather than silently substituting a value; code review confirms no
+  cookie is ever set by a read-only path.
+- **Verification requirements:** Gate A (typecheck, build, code review of the session
   helpers and cookie flags against invariants 4–6).
 - **Live/authenticated testing requirements:** none.
 - **Commit boundary:** the three files above, in one commit.
@@ -407,11 +482,11 @@ data, under its own labeled procedure (see below).
   (`createServerFn({ method: "POST" }).validator(...)` with a Zod
   `{ email: z.string().email(), password: z.string().min(1) }` schema; calls
   `auth.signInWithPassword` on a plain anon-key client; on success, calls
-  Checkpoint 2's `setSessionCookie`; on failure, throws a single generic error message —
+  Checkpoint 2's `writeSessionData`; on failure, throws a single generic error message —
   never distinguishing "no such user" from "wrong password", to avoid account
   enumeration) and `logoutAction` (`createServerFn({ method: "POST" })`; reads the
-  current session cookie, calls `auth.signOut()` with it if present, then calls
-  `clearSessionCookie` unconditionally).
+  current session via Checkpoint 2's `readSessionData`, calls `auth.signOut()` with it if
+  present, then calls `clearSessionCookie` unconditionally).
 - **Security invariants:** 1, 2, 3, 4, 6, 12.
 - **Explicit exclusions:** no route/UI wiring, no live testing, no password-reset logic,
   no browser-side Supabase auth calls (Decision 2).
@@ -431,11 +506,12 @@ data, under its own labeled procedure (see below).
 - **Exact scope:** `src/lib/auth/context.ts` (new) plus a targeted change to
   `src/lib/supabase/server.ts`'s default resolution path.
 - **Expected files:**
-  - `src/lib/auth/context.ts` (new) — `resolveSessionUser()`: reads the session cookie
-    via Checkpoint 2's helpers; if the decrypted `expires_at` is at or within a small
-    safety margin of now, calls `auth.refreshSession({ refresh_token })` and rewrites the
-    cookie with the rotated tokens; on any decrypt/refresh failure, clears the cookie and
-    returns "no session" rather than throwing past the caller. Returns the valid access
+  - `src/lib/auth/context.ts` (new) — `resolveSessionUser()`: reads the session via
+    Checkpoint 2's `readSessionData()`; if the unsealed `expires_at` is at or within a
+    small safety margin of now, calls `auth.refreshSession({ refresh_token })` and
+    rewrites the session via `writeSessionData()` with the rotated tokens; on any
+    unseal/refresh failure, clears the session via `clearSessionCookie()` and returns "no
+    session" rather than throwing past the caller. Returns the valid access
     token (or `undefined`) plus, when present, the resolved user id/email. Does **not**
     resolve `pharmacy_role` — Checkpoint 5 does that, via `getPharmacyContext()`, using a
     client built from this helper's token.
@@ -644,9 +720,10 @@ data, under its own labeled procedure (see below).
   3. Manual browser test: navigate to a protected route unauthenticated → confirm
      redirect to `/login` with `redirect` set to the originally-requested path.
   4. Manual browser test: log in as User A → confirm redirect lands on the
-     originally-requested path (or role home if none was set) → inspect the session
-     cookie in devtools and confirm `HttpOnly`, `SameSite=Lax`, and (in production)
-     `Secure` are all set, and that its value is not plaintext JSON → confirm the header
+     originally-requested path (or role home if none was set) → inspect the
+     `pharmapilot_session` cookie in devtools and confirm `HttpOnly`, `SameSite=Lax`, and
+     (in production) `Secure` are all set, and that its value is not plaintext JSON →
+     confirm the header
      now shows User A's real resolved identity/role and that no mock-user selector is
      present or usable.
   5. Manual browser test: reload and navigate across several of the 16 protected routes
