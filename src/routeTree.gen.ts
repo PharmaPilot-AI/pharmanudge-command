@@ -17,6 +17,7 @@ import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ExpiryRouteImport } from './routes/expiry'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InventoryOpsRouteImport } from './routes/inventory-ops'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MoneyRouteImport } from './routes/money'
 import { Route as PackagingRouteImport } from './routes/packaging'
 import { Route as PosRouteImport } from './routes/pos'
@@ -64,6 +65,11 @@ const InventoryRoute = InventoryRouteImport.update({
 const InventoryOpsRoute = InventoryOpsRouteImport.update({
   id: '/inventory-ops',
   path: '/inventory-ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MoneyRoute = MoneyRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/expiry': typeof ExpiryRoute
   '/inventory': typeof InventoryRoute
   '/inventory-ops': typeof InventoryOpsRoute
+  '/login': typeof LoginRoute
   '/money': typeof MoneyRoute
   '/packaging': typeof PackagingRoute
   '/pos': typeof PosRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/expiry': typeof ExpiryRoute
   '/inventory': typeof InventoryRoute
   '/inventory-ops': typeof InventoryOpsRoute
+  '/login': typeof LoginRoute
   '/money': typeof MoneyRoute
   '/packaging': typeof PackagingRoute
   '/pos': typeof PosRoute
@@ -153,6 +161,7 @@ export interface FileRoutesById {
   '/expiry': typeof ExpiryRoute
   '/inventory': typeof InventoryRoute
   '/inventory-ops': typeof InventoryOpsRoute
+  '/login': typeof LoginRoute
   '/money': typeof MoneyRoute
   '/packaging': typeof PackagingRoute
   '/pos': typeof PosRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/expiry'
     | '/inventory'
     | '/inventory-ops'
+    | '/login'
     | '/money'
     | '/packaging'
     | '/pos'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/expiry'
     | '/inventory'
     | '/inventory-ops'
+    | '/login'
     | '/money'
     | '/packaging'
     | '/pos'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/expiry'
     | '/inventory'
     | '/inventory-ops'
+    | '/login'
     | '/money'
     | '/packaging'
     | '/pos'
@@ -228,6 +240,7 @@ export interface RootRouteChildren {
   ExpiryRoute: typeof ExpiryRoute
   InventoryRoute: typeof InventoryRoute
   InventoryOpsRoute: typeof InventoryOpsRoute
+  LoginRoute: typeof LoginRoute
   MoneyRoute: typeof MoneyRoute
   PackagingRoute: typeof PackagingRoute
   PosRoute: typeof PosRoute
@@ -294,6 +307,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory-ops'
       fullPath: '/inventory-ops'
       preLoaderRoute: typeof InventoryOpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/money': {
@@ -364,6 +384,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExpiryRoute: ExpiryRoute,
   InventoryRoute: InventoryRoute,
   InventoryOpsRoute: InventoryOpsRoute,
+  LoginRoute: LoginRoute,
   MoneyRoute: MoneyRoute,
   PackagingRoute: PackagingRoute,
   PosRoute: PosRoute,
