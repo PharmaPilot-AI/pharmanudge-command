@@ -6,7 +6,9 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  redirect,
 } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
@@ -14,6 +16,10 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
 import { AppModeProvider } from "@/lib/app-mode";
+import { resolveSessionUser } from "@/lib/auth/context";
+import { isAllowedRedirect } from "@/lib/auth/redirect";
+import { getPharmacyContext, type PharmacyContext } from "@/lib/pharmacy-context";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function NotFoundComponent() {
   return (
@@ -75,7 +81,61 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+interface AuthRouteContext {
+  user: { userId: string; email: string | undefined } | null;
+  pharmacyContext: PharmacyContext | null;
+}
+
+/**
+ * Resolves the authenticated session (refreshing it if needed) and, when
+ * present, the caller's pharmacy membership/role — in one server-only call.
+ * Wrapped in createServerFn rather than called directly from beforeLoad,
+ * since beforeLoad is isomorphic (it can run client-side on subsequent
+ * navigations) while session/token resolution must never run in the
+ * browser; createServerFn guarantees server-only execution regardless of
+ * caller environment, matching this codebase's existing route-loader
+ * pattern (e.g. src/routes/products.tsx's getProducts).
+ *
+ * This is the only place in the app that calls getPharmacyContext() for
+ * presentation/routing purposes — called at most once per beforeLoad
+ * invocation.
+ */
+const resolveAuthContext = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AuthRouteContext> => {
+    const resolved = await resolveSessionUser();
+    if (!resolved) return { user: null, pharmacyContext: null };
+
+    const client = createServerSupabaseClient(resolved.accessToken);
+    const pharmacyContext = await getPharmacyContext(client);
+
+    return {
+      user: { userId: resolved.userId, email: resolved.email },
+      pharmacyContext,
+    };
+  },
+);
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  beforeLoad: async ({ location }): Promise<AuthRouteContext> => {
+    const { user, pharmacyContext } = await resolveAuthContext();
+
+    if (!user && location.pathname !== "/login") {
+      throw redirect({
+        // "/login" doesn't exist as a registered route until Checkpoint 6
+        // creates src/routes/login.tsx, so TanStack Router's route-tree-
+        // derived `to`/`search` typing can't yet verify this call. Both
+        // casts become redundant (but harmless) once that route exists;
+        // safe now because redirect()'s runtime behavior never depends on
+        // this compile-time route-tree check.
+        to: "/login" as any,
+        search: {
+          redirect: isAllowedRedirect(location.pathname) ? location.pathname : undefined,
+        } as any,
+      });
+    }
+
+    return { user, pharmacyContext };
+  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
