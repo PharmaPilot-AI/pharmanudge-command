@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useAppMode } from "@/lib/app-mode";
 import { opsMobilePrimaryPaths, opsNav, ownerNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { LogoutButton } from "./LogoutButton";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { SyncStatusPill } from "./SyncStatusPill";
 
@@ -36,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <SyncStatusPill />
             <ModeSwitcher />
+            <LogoutButton />
           </div>
         </div>
       </header>
