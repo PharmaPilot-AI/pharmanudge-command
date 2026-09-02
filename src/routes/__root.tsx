@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   redirect,
@@ -191,14 +192,22 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
+  // /login must never render inside the authenticated AppShell chrome
+  // (header identity, sidebar/bottom nav, logout button) — it's the one
+  // route reachable while unauthenticated.
   return (
     <QueryClientProvider client={queryClient}>
       <AppModeProvider>
-        <AppShell>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        {pathname === "/login" ? (
           <Outlet />
-        </AppShell>
+        ) : (
+          <AppShell>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </AppShell>
+        )}
         <Toaster position="top-center" richColors />
       </AppModeProvider>
     </QueryClientProvider>
