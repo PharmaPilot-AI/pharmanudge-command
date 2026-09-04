@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { KeyRound, ShieldOff } from "lucide-react";
@@ -9,7 +9,14 @@ import { z } from "zod";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { loginAction } from "@/lib/auth/actions";
 import { isAllowedRedirect, resolveHome } from "@/lib/auth/redirect";
@@ -137,6 +144,12 @@ function LoginPage() {
               <Button type="submit" disabled={isSubmitting} className="mt-2">
                 {isSubmitting ? "Logging in…" : "Log in"}
               </Button>
+              <Link
+                to="/forgot-password"
+                className="text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Forgot password?
+              </Link>
             </form>
           </Form>
         </CardContent>

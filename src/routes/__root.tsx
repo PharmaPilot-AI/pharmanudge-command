@@ -88,6 +88,18 @@ interface AuthRouteContext {
 }
 
 /**
+ * Routes reachable without an authenticated session, and rendered without
+ * AppShell chrome (Checkpoint 6B: /forgot-password and /reset-password join
+ * /login here — the recovery flow must be reachable and presentable to a
+ * signed-out visitor same as login itself).
+ */
+const PUBLIC_ROUTE_PATHS = ["/login", "/forgot-password", "/reset-password"] as const;
+
+function isPublicRoute(pathname: string): boolean {
+  return (PUBLIC_ROUTE_PATHS as readonly string[]).includes(pathname);
+}
+
+/**
  * Resolves the authenticated session (refreshing it if needed) and, when
  * present, the caller's pharmacy membership/role — in one server-only call.
  * Wrapped in createServerFn rather than called directly from beforeLoad,
@@ -120,7 +132,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   beforeLoad: async ({ location }): Promise<AuthRouteContext> => {
     const { user, pharmacyContext } = await resolveAuthContext();
 
-    if (!user && location.pathname !== "/login") {
+    if (!user && !isPublicRoute(location.pathname)) {
       throw redirect({
         // "/login" doesn't exist as a registered route until Checkpoint 6
         // creates src/routes/login.tsx, so TanStack Router's route-tree-
@@ -194,13 +206,13 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  // /login must never render inside the authenticated AppShell chrome
-  // (header identity, sidebar/bottom nav, logout button) — it's the one
-  // route reachable while unauthenticated.
+  // Public routes must never render inside the authenticated AppShell
+  // chrome (header identity, sidebar/bottom nav, logout button) — these are
+  // the routes reachable while unauthenticated.
   return (
     <QueryClientProvider client={queryClient}>
       <AppModeProvider>
-        {pathname === "/login" ? (
+        {isPublicRoute(pathname) ? (
           <Outlet />
         ) : (
           <AppShell>

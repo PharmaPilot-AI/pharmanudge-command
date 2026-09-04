@@ -15,6 +15,7 @@ import { Route as AskAiRouteImport } from './routes/ask-ai'
 import { Route as CloseDayRouteImport } from './routes/close-day'
 import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ExpiryRouteImport } from './routes/expiry'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InventoryOpsRouteImport } from './routes/inventory-ops'
 import { Route as LoginRouteImport } from './routes/login'
@@ -24,6 +25,7 @@ import { Route as PosRouteImport } from './routes/pos'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as ReceiveStockRouteImport } from './routes/receive-stock'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as UsersRouteImport } from './routes/users'
 
@@ -55,6 +57,11 @@ const ExpensesRoute = ExpensesRouteImport.update({
 const ExpiryRoute = ExpiryRouteImport.update({
   id: '/expiry',
   path: '/expiry',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventoryRoute = InventoryRouteImport.update({
@@ -102,6 +109,11 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServicesRoute = ServicesRouteImport.update({
   id: '/services',
   path: '/services',
@@ -120,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/close-day': typeof CloseDayRoute
   '/expenses': typeof ExpensesRoute
   '/expiry': typeof ExpiryRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inventory': typeof InventoryRoute
   '/inventory-ops': typeof InventoryOpsRoute
   '/login': typeof LoginRoute
@@ -129,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/products': typeof ProductsRoute
   '/receive-stock': typeof ReceiveStockRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
   '/users': typeof UsersRoute
 }
@@ -139,6 +153,7 @@ export interface FileRoutesByTo {
   '/close-day': typeof CloseDayRoute
   '/expenses': typeof ExpensesRoute
   '/expiry': typeof ExpiryRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inventory': typeof InventoryRoute
   '/inventory-ops': typeof InventoryOpsRoute
   '/login': typeof LoginRoute
@@ -148,6 +163,7 @@ export interface FileRoutesByTo {
   '/products': typeof ProductsRoute
   '/receive-stock': typeof ReceiveStockRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
   '/users': typeof UsersRoute
 }
@@ -159,6 +175,7 @@ export interface FileRoutesById {
   '/close-day': typeof CloseDayRoute
   '/expenses': typeof ExpensesRoute
   '/expiry': typeof ExpiryRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/inventory': typeof InventoryRoute
   '/inventory-ops': typeof InventoryOpsRoute
   '/login': typeof LoginRoute
@@ -168,6 +185,7 @@ export interface FileRoutesById {
   '/products': typeof ProductsRoute
   '/receive-stock': typeof ReceiveStockRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
   '/users': typeof UsersRoute
 }
@@ -180,6 +198,7 @@ export interface FileRouteTypes {
     | '/close-day'
     | '/expenses'
     | '/expiry'
+    | '/forgot-password'
     | '/inventory'
     | '/inventory-ops'
     | '/login'
@@ -189,6 +208,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/receive-stock'
     | '/reports'
+    | '/reset-password'
     | '/services'
     | '/users'
   fileRoutesByTo: FileRoutesByTo
@@ -199,6 +219,7 @@ export interface FileRouteTypes {
     | '/close-day'
     | '/expenses'
     | '/expiry'
+    | '/forgot-password'
     | '/inventory'
     | '/inventory-ops'
     | '/login'
@@ -208,6 +229,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/receive-stock'
     | '/reports'
+    | '/reset-password'
     | '/services'
     | '/users'
   id:
@@ -218,6 +240,7 @@ export interface FileRouteTypes {
     | '/close-day'
     | '/expenses'
     | '/expiry'
+    | '/forgot-password'
     | '/inventory'
     | '/inventory-ops'
     | '/login'
@@ -227,6 +250,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/receive-stock'
     | '/reports'
+    | '/reset-password'
     | '/services'
     | '/users'
   fileRoutesById: FileRoutesById
@@ -238,6 +262,7 @@ export interface RootRouteChildren {
   CloseDayRoute: typeof CloseDayRoute
   ExpensesRoute: typeof ExpensesRoute
   ExpiryRoute: typeof ExpiryRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   InventoryRoute: typeof InventoryRoute
   InventoryOpsRoute: typeof InventoryOpsRoute
   LoginRoute: typeof LoginRoute
@@ -247,6 +272,7 @@ export interface RootRouteChildren {
   ProductsRoute: typeof ProductsRoute
   ReceiveStockRoute: typeof ReceiveStockRoute
   ReportsRoute: typeof ReportsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ServicesRoute: typeof ServicesRoute
   UsersRoute: typeof UsersRoute
 }
@@ -293,6 +319,13 @@ declare module '@tanstack/react-router' {
       path: '/expiry'
       fullPath: '/expiry'
       preLoaderRoute: typeof ExpiryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventory': {
@@ -358,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/services': {
       id: '/services'
       path: '/services'
@@ -382,6 +422,7 @@ const rootRouteChildren: RootRouteChildren = {
   CloseDayRoute: CloseDayRoute,
   ExpensesRoute: ExpensesRoute,
   ExpiryRoute: ExpiryRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   InventoryRoute: InventoryRoute,
   InventoryOpsRoute: InventoryOpsRoute,
   LoginRoute: LoginRoute,
@@ -391,6 +432,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsRoute: ProductsRoute,
   ReceiveStockRoute: ReceiveStockRoute,
   ReportsRoute: ReportsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ServicesRoute: ServicesRoute,
   UsersRoute: UsersRoute,
 }
