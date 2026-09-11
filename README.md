@@ -374,3 +374,5 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+<!-- sync check: nudge commit to re-trigger Lovable's GitHub sync -->
