@@ -1,7 +1,7 @@
 import "@tanstack/react-start/server-only";
 import { createClient } from "@supabase/supabase-js";
 import { getRequest } from "@tanstack/react-start/server";
-import { getClientEnv } from "../supabase/env";
+import { getServerSupabaseEnv } from "../supabase/server-env";
 import type { Database } from "../supabase/database.types";
 import { clearSessionCookie, readSessionData, writeSessionData, type SessionTokens } from "./session";
 
@@ -32,8 +32,8 @@ const resolutionCache = new WeakMap<Request, Promise<ResolvedSessionUser | undef
  * (createServerSupabaseClient()'s default path calls resolveSessionUser()).
  */
 function createRefreshClient() {
-  const env = getClientEnv();
-  return createClient<Database>(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
+  const env = getServerSupabaseEnv();
+  return createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }

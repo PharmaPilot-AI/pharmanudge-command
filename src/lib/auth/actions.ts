@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { getClientEnv } from "../supabase/env";
+import { getServerSupabaseEnv } from "../supabase/server-env";
 import { createServerSupabaseClient } from "../supabase/server";
 import { clearSessionCookie, readSessionData, writeSessionData } from "./session";
 import { getSiteUrl } from "./site-url";
@@ -16,8 +16,8 @@ import { getSiteUrl } from "./site-url";
  * remaining unused for auth purposes).
  */
 function createRecoveryClient() {
-  const env = getClientEnv();
-  return createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
+  const env = getServerSupabaseEnv();
+  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

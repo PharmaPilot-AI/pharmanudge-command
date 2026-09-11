@@ -2,7 +2,7 @@ import "@tanstack/react-start/server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import type { Database } from "./database.types";
-import { getClientEnv } from "./env";
+import { getServerSupabaseEnv } from "./server-env";
 import { resolveSessionUser } from "../auth/context";
 
 function extractBearerToken(headerValue: string | undefined): string | undefined {
@@ -29,10 +29,10 @@ function extractBearerToken(headerValue: string | undefined): string | undefined
  */
 export function createServerSupabaseClient(accessToken?: string): SupabaseClient<Database> {
   const token = accessToken ?? extractBearerToken(getRequestHeader("authorization"));
-  const env = getClientEnv();
+  const env = getServerSupabaseEnv();
 
   if (token) {
-    return createClient<Database>(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
+    return createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -42,7 +42,7 @@ export function createServerSupabaseClient(accessToken?: string): SupabaseClient
     });
   }
 
-  return createClient<Database>(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
+  return createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
