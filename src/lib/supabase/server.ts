@@ -32,7 +32,7 @@ export function createServerSupabaseClient(accessToken?: string): SupabaseClient
   const env = getServerSupabaseEnv();
 
   if (token) {
-    return createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+    return createClient<Database>(env.APP_SUPABASE_URL, env.APP_SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -42,7 +42,7 @@ export function createServerSupabaseClient(accessToken?: string): SupabaseClient
     });
   }
 
-  return createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+  return createClient<Database>(env.APP_SUPABASE_URL, env.APP_SUPABASE_ANON_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

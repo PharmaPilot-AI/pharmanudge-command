@@ -33,7 +33,7 @@ const resolutionCache = new WeakMap<Request, Promise<ResolvedSessionUser | undef
  */
 function createRefreshClient() {
   const env = getServerSupabaseEnv();
-  return createClient<Database>(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+  return createClient<Database>(env.APP_SUPABASE_URL, env.APP_SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }

@@ -17,7 +17,7 @@ import { getSiteUrl } from "./site-url";
  */
 function createRecoveryClient() {
   const env = getServerSupabaseEnv();
-  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+  return createClient(env.APP_SUPABASE_URL, env.APP_SUPABASE_ANON_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
