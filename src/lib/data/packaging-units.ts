@@ -1,8 +1,22 @@
 import "@tanstack/react-start/server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveSessionUser } from "../auth/context";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
 import type { Database, Tables, TablesInsert, TablesUpdate } from "../supabase/database.types";
+
+/**
+ * Resolved here, at each function's own top-level execution, rather than
+ * left to createServerSupabaseClient()'s lazy per-fetch resolution — that
+ * lazy path calls resolveSessionUser() from inside a callback supabase-js
+ * invokes internally, which loses this app's AsyncLocalStorage-based
+ * request context on Cloudflare Workers, silently resolving as
+ * unauthenticated. Resolving synchronously up front, the same way
+ * __root.tsx already does, avoids that boundary entirely.
+ */
+async function resolveClient(client?: SupabaseClient<Database>): Promise<SupabaseClient<Database>> {
+  return client ?? createServerSupabaseClient((await resolveSessionUser())?.accessToken);
+}
 
 /**
  * Lists active packaging units for one product belonging to the caller's own
@@ -13,11 +27,12 @@ import type { Database, Tables, TablesInsert, TablesUpdate } from "../supabase/d
  */
 export async function listPackagingUnitsForProduct(
   productId: string,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<Tables<"packaging_units">[]> {
-  const { pharmacyId } = await requirePharmacyContext(client);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("packaging_units")
     .select("*, products!inner(pharmacy_id)")
     .eq("product_id", productId)
@@ -83,12 +98,17 @@ async function getOwnedPackagingUnit(
  */
 export async function createPackagingUnit(
   input: Omit<TablesInsert<"packaging_units">, "id" | "created_at" | "updated_at">,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<Tables<"packaging_units">> {
-  const { pharmacyId } = await requirePharmacyContext(client);
-  await assertOwnedProduct(client, input.product_id, pharmacyId);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
+  await assertOwnedProduct(resolvedClient, input.product_id, pharmacyId);
 
-  const { data, error } = await client.from("packaging_units").insert(input).select().single();
+  const { data, error } = await resolvedClient
+    .from("packaging_units")
+    .insert(input)
+    .select()
+    .single();
 
   if (error) throw error;
   return data;
@@ -106,12 +126,13 @@ export async function updatePackagingUnit(
   input: Partial<
     Omit<TablesUpdate<"packaging_units">, "id" | "product_id" | "created_at" | "updated_at">
   >,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<Tables<"packaging_units">> {
-  const { pharmacyId } = await requirePharmacyContext(client);
-  await getOwnedPackagingUnit(client, packagingUnitId, pharmacyId);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
+  await getOwnedPackagingUnit(resolvedClient, packagingUnitId, pharmacyId);
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("packaging_units")
     .update(input)
     .eq("id", packagingUnitId)
@@ -128,12 +149,13 @@ export async function updatePackagingUnit(
  */
 export async function deletePackagingUnit(
   packagingUnitId: string,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<void> {
-  const { pharmacyId } = await requirePharmacyContext(client);
-  await getOwnedPackagingUnit(client, packagingUnitId, pharmacyId);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
+  await getOwnedPackagingUnit(resolvedClient, packagingUnitId, pharmacyId);
 
-  const { error } = await client.from("packaging_units").delete().eq("id", packagingUnitId);
+  const { error } = await resolvedClient.from("packaging_units").delete().eq("id", packagingUnitId);
 
   if (error) throw error;
 }

@@ -1,8 +1,22 @@
 import "@tanstack/react-start/server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveSessionUser } from "../auth/context";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
 import type { Database, Tables, TablesInsert, TablesUpdate } from "../supabase/database.types";
+
+/**
+ * Resolved here, at each function's own top-level execution, rather than
+ * left to createServerSupabaseClient()'s lazy per-fetch resolution — that
+ * lazy path calls resolveSessionUser() from inside a callback supabase-js
+ * invokes internally, which loses this app's AsyncLocalStorage-based
+ * request context on Cloudflare Workers, silently resolving as
+ * unauthenticated. Resolving synchronously up front, the same way
+ * __root.tsx already does, avoids that boundary entirely.
+ */
+async function resolveClient(client?: SupabaseClient<Database>): Promise<SupabaseClient<Database>> {
+  return client ?? createServerSupabaseClient((await resolveSessionUser())?.accessToken);
+}
 
 /**
  * Lists active products for the caller's own pharmacy. Read-only. Scoped by
@@ -10,11 +24,12 @@ import type { Database, Tables, TablesInsert, TablesUpdate } from "../supabase/d
  * or query failure rather than returning an empty/misleading list.
  */
 export async function listProducts(
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<Tables<"products">[]> {
-  const { pharmacyId } = await requirePharmacyContext(client);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("products")
     .select("*")
     .eq("pharmacy_id", pharmacyId)
@@ -32,11 +47,12 @@ export async function listProducts(
  */
 export async function createProduct(
   input: Omit<TablesInsert<"products">, "pharmacy_id">,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<Tables<"products">> {
-  const { pharmacyId } = await requirePharmacyContext(client);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("products")
     .insert({ ...input, pharmacy_id: pharmacyId })
     .select()
@@ -54,11 +70,12 @@ export async function createProduct(
 export async function updateProduct(
   productId: string,
   input: Partial<Omit<TablesUpdate<"products">, "pharmacy_id" | "id">>,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<Tables<"products">> {
-  const { pharmacyId } = await requirePharmacyContext(client);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("products")
     .update(input)
     .eq("id", productId)
@@ -77,11 +94,12 @@ export async function updateProduct(
  */
 export async function deleteProduct(
   productId: string,
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<void> {
-  const { pharmacyId } = await requirePharmacyContext(client);
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId } = await requirePharmacyContext(resolvedClient);
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("products")
     .delete()
     .eq("id", productId)

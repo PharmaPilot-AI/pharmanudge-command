@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveSessionUser } from "./auth/context";
 import { createServerSupabaseClient } from "./supabase/server";
 import type { Database } from "./supabase/database.types";
 
@@ -17,12 +18,21 @@ export interface PharmacyContext {
  * never uses service-role credentials.
  */
 export async function getPharmacyContext(
-  client: SupabaseClient<Database> = createServerSupabaseClient(),
+  client?: SupabaseClient<Database>,
 ): Promise<PharmacyContext | null> {
-  const { data: userData, error: userError } = await client.auth.getUser();
+  // Resolved here, at this function's own top-level execution, rather than
+  // left to createServerSupabaseClient()'s lazy per-fetch resolution — that
+  // lazy path calls resolveSessionUser() from inside a callback supabase-js
+  // invokes internally, which loses this app's AsyncLocalStorage-based
+  // request context on Cloudflare Workers, silently resolving as
+  // unauthenticated. Resolving synchronously up front, the same way
+  // __root.tsx already does, avoids that boundary entirely.
+  const resolvedClient =
+    client ?? createServerSupabaseClient((await resolveSessionUser())?.accessToken);
+  const { data: userData, error: userError } = await resolvedClient.auth.getUser();
   if (userError || !userData.user) return null;
 
-  const { data, error } = await client
+  const { data, error } = await resolvedClient
     .from("pharmacy_members")
     .select("pharmacy_id, role, pharmacies!inner(is_active)")
     .eq("user_id", userData.user.id)
