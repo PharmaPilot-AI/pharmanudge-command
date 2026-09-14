@@ -75,20 +75,42 @@ function decodeAccessTokenClaims(
   }
 }
 
+// TEMPORARY DIAGNOSTIC LOGGING throughout this function — remove after
+// root-causing the /products "No active pharmacy membership" investigation.
+// Fixed labels, booleans, counts, and error names/status only — never
+// cookie/token/session values.
 async function resolveSessionUserUncached(): Promise<ResolvedSessionUser | undefined> {
   const tokens = await readSessionData();
-  if (!tokens) return undefined;
+  if (!tokens) {
+    console.error("[DIAG][context] no_tokens_from_readSessionData");
+    return undefined;
+  }
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   let active: SessionTokens = tokens;
+  const needsRefresh = tokens.expires_at <= nowSeconds + REFRESH_SAFETY_MARGIN_SECONDS;
+  console.error("[DIAG][context] token_state", {
+    needsRefresh,
+    secondsUntilExpiry: tokens.expires_at - nowSeconds,
+  });
 
-  if (tokens.expires_at <= nowSeconds + REFRESH_SAFETY_MARGIN_SECONDS) {
+  if (needsRefresh) {
     const result = await createRefreshClient()
       .auth.refreshSession({ refresh_token: tokens.refresh_token })
-      .catch(() => null);
+      .catch((err: unknown) => {
+        console.error("[DIAG][context] refreshSession_threw", {
+          name: err instanceof Error ? err.name : typeof err,
+        });
+        return null;
+      });
 
     const session = result && !result.error ? result.data.session : null;
     if (!session) {
+      console.error("[DIAG][context] refresh_failed_or_no_session", {
+        hadResult: !!result,
+        hadError: !!(result && result.error),
+        errorStatus: result?.error ? (result.error as { status?: number }).status : undefined,
+      });
       await clearSessionCookie();
       return undefined;
     }
@@ -103,10 +125,12 @@ async function resolveSessionUserUncached(): Promise<ResolvedSessionUser | undef
 
   const claims = decodeAccessTokenClaims(active.access_token);
   if (!claims) {
+    console.error("[DIAG][context] decodeAccessTokenClaims_failed");
     await clearSessionCookie();
     return undefined;
   }
 
+  console.error("[DIAG][context] resolveSessionUser_success", { hasUserId: !!claims.userId });
   return { accessToken: active.access_token, userId: claims.userId, email: claims.email };
 }
 

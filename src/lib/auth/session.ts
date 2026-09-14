@@ -59,13 +59,33 @@ export function buildSessionConfig(): SessionConfig {
  * expired cookie; never throws.
  */
 export async function readSessionData(): Promise<SessionTokens | undefined> {
-  const cookieValue = getCookie(SESSION_COOKIE_NAME);
-  if (!cookieValue) return undefined;
+  // TEMPORARY DIAGNOSTIC LOGGING — remove after root-causing the /products
+  // "No active pharmacy membership" investigation. Fixed labels, booleans,
+  // and error names/codes only — never cookie/token/session values.
+  let cookieValue: string | undefined;
+  try {
+    cookieValue = getCookie(SESSION_COOKIE_NAME);
+  } catch (err) {
+    console.error("[DIAG][session] getCookie_threw", {
+      name: err instanceof Error ? err.name : typeof err,
+    });
+    throw err;
+  }
+
+  if (!cookieValue) {
+    console.error("[DIAG][session] no_session_cookie_present");
+    return undefined;
+  }
 
   try {
     const unsealed = await unsealSession(buildSessionConfig(), cookieValue);
-    return isSessionTokens(unsealed.data) ? unsealed.data : undefined;
-  } catch {
+    if (isSessionTokens(unsealed.data)) return unsealed.data;
+    console.error("[DIAG][session] unsealed_but_shape_invalid");
+    return undefined;
+  } catch (err) {
+    console.error("[DIAG][session] unseal_threw", {
+      name: err instanceof Error ? err.name : typeof err,
+    });
     return undefined;
   }
 }
