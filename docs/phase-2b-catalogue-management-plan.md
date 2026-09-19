@@ -377,3 +377,16 @@ one live, approved, cleaned-up CRUD test per entity per operation; the packaging
 cross-pharmacy negative test passed; zero leftover test data in the live database; git
 synchronized with a clean working tree; schema/RLS limited to Checkpoint 2's
 write-enabling policies.
+
+## Addendum — Carried-Forward Obligation Discharged
+
+Checkpoint 10's live smoke-testing (including the packaging-unit
+cross-pharmacy negative test) was never executed live under this document —
+there was no way to become authenticated at the time. That obligation was
+carried forward into Phase 3 and fully discharged there, at Phase 3's
+Checkpoint 11, on 2026-09-19. See
+`docs/phase-3-authentication-e2e-enablement-plan.md`'s Checkpoint 11 and its
+Phase 3 Closeout Record for the actual live test results and cleanup
+evidence. This document's own Definition of Phase 2B COMPLETE above is now
+satisfied by reference to that later work, not by any live testing recorded
+directly in this file.

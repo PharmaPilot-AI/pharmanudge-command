@@ -914,3 +914,52 @@ These are tracked as **five distinct facts**, not one:
 
 Phase 3 is not COMPLETE unless all five are true. Facts 1–4 being true does not imply
 fact 5 is resolved — it is explicitly not, and is not claimed to be.
+
+---
+
+## Phase 3 Closeout Record
+
+Closed out 2026-09-19. All five facts assessed against this document's own
+"Definition of Phase 3 COMPLETE":
+
+1. **Authentication/session functionality complete** — Checkpoints 1–8
+   implemented and committed (`cbcdf24` through `84eaf81`), typecheck/build
+   passing, all security invariants 1–9, 11, 12 confirmed by code review.
+2. **Authentication genuinely exercised through the browser** — Checkpoint 9's
+   nine steps (0–8) all passed live, including the SESSION_SECRET
+   precondition, refresh/refresh-failure paths, cookie-flag inspection, and
+   real-identity display.
+3. **Carried-forward Phase 2B catalogue E2E obligation discharged** —
+   Checkpoint 11's 10 live tests all passed, including both cross-pharmacy
+   negative cases (packaging-unit create and edit/delete) genuinely denied
+   server-side.
+4. **Temporary test data fully cleaned up** — Checkpoint 11's cleanup
+   executed and independently re-verified: zero leftover `__phase3_e2e__`
+   rows, zero leftover disposable (Tenant B) Auth users, User A/Tenant A
+   confirmed intact and functional post-cleanup.
+5. **Anonymous-role grant-hardening finding** — remains explicitly
+   unresolved and deferred, as originally scoped. Not addressed by this
+   phase; carried forward for future remediation.
+
+**Phase 3 is COMPLETE** (facts 1–4 true; fact 5 intentionally deferred, not
+a completion blocker per this document's own terms).
+
+Two unplanned production defects were discovered and fixed during live
+verification, each through its own approved gate — not a deviation from
+this plan's scope, but a necessary correction surfaced by genuinely
+exercising the app live for the first time:
+- `/login` rendering inside the authenticated AppShell chrome (`5b25997`).
+- Server-side Supabase client construction failing in the Cloudflare
+  Workers runtime, affecting every Phase 2B catalogue DAL function
+  (`ce3c419`, `4cea471`, `8a67f85`).
+
+One formal plan amendment was adopted during execution: **Checkpoint 6B —
+password recovery flow**, added because User A's password was forgotten
+mid-verification and no recovery path existed. Implemented, committed, and
+verified live (`c9b3691`, `963b223`, `ce3c419`).
+
+Permanent records: User A (`usman@pharmanudge.com`,
+`6a6c64d0-09d4-426d-a63d-df91e424f061`), Tenant A ("Ebona Pharmacy",
+`a13a3c73-1e33-431e-bc43-27d8ccdf1563`), membership
+(`c9627487-c916-49d6-bbe1-9a81217eddcc`, role `owner`) — all confirmed
+intact, not subject to any cleanup.
