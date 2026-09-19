@@ -22,9 +22,9 @@ import type { Expense } from "@/lib/types";
 export const Route = createFileRoute("/expenses")({
   head: () => ({
     meta: [
-      { title: "Expenses — PharmaPilot AI" },
+      { title: "Expenses — PharmaNudge" },
       { name: "description", content: "Record and review daily pharmacy expenses." },
-      { property: "og:title", content: "Expenses — PharmaPilot AI" },
+      { property: "og:title", content: "Expenses — PharmaNudge" },
       { property: "og:description", content: "Record and review daily pharmacy expenses." },
       { property: "og:type", content: "website" },
     ],

@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/ask-ai")({
   head: () => ({
     meta: [
-      { title: "Ask PharmaPilot AI — PharmaPilot AI" },
+      { title: "Ask PharmaNudge — PharmaNudge" },
       { name: "description", content: "Ask questions about your pharmacy's sales, cash and stock. Answers separate verified facts from recommendations." },
-      { property: "og:title", content: "Ask PharmaPilot AI" },
+      { property: "og:title", content: "Ask PharmaNudge" },
       { property: "og:description", content: "Decision intelligence for your pharmacy — facts first, then advice." },
       { property: "og:type", content: "website" },
     ],
@@ -32,7 +32,7 @@ const greeting: AiChatMessage = {
 };
 
 /**
- * Ask PharmaPilot AI. Phase 1 is a scripted demo: suggested questions replay
+ * Ask PharmaNudge. Phase 1 is a scripted demo: suggested questions replay
  * curated answers; anything else is clearly labeled a mock response — the UI
  * never pretends a real model answered.
  */
@@ -68,7 +68,7 @@ function AskAi() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col" style={{ minHeight: "calc(100dvh - 12rem)" }}>
       <PageHeader
-        title="Ask PharmaPilot AI"
+        title="Ask PharmaNudge"
         description="Advisory answers grounded in your records. AI never changes your books or stock."
       />
 
@@ -125,7 +125,7 @@ function AskAi() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about sales, cash, or stock…"
           className="h-12 flex-1 text-base"
-          aria-label="Ask PharmaPilot AI a question"
+          aria-label="Ask PharmaNudge a question"
         />
         <Button type="submit" size="lg" className="h-12 w-12 shrink-0 p-0" disabled={!input.trim()} aria-label="Send">
           <Send className="h-5 w-5" />

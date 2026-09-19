@@ -27,10 +27,10 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordFormSchema>;
 export const Route = createFileRoute("/forgot-password")({
   head: () => ({
     meta: [
-      { title: "Forgot password — PharmaPilot AI" },
+      { title: "Forgot password — PharmaNudge" },
       {
         name: "description",
-        content: "Request a password reset link for your PharmaPilot AI account.",
+        content: "Request a password reset link for your PharmaNudge account.",
       },
     ],
   }),

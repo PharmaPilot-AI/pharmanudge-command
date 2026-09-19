@@ -21,9 +21,9 @@ import { products, suppliers } from "@/lib/mock-data";
 export const Route = createFileRoute("/receive-stock")({
   head: () => ({
     meta: [
-      { title: "Receive Stock — PharmaPilot AI" },
+      { title: "Receive Stock — PharmaNudge" },
       { name: "description", content: "Record supplier deliveries with batch and expiry. Review base-unit equivalents before confirming." },
-      { property: "og:title", content: "Receive Stock — PharmaPilot AI" },
+      { property: "og:title", content: "Receive Stock — PharmaNudge" },
       { property: "og:description", content: "Record supplier deliveries with batch and expiry tracking." },
       { property: "og:type", content: "website" },
     ],

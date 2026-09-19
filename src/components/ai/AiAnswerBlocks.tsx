@@ -3,7 +3,7 @@ import { ArrowRight, Lightbulb, ShieldCheck } from "lucide-react";
 
 /**
  * Advisory answer structure. VERIFIED FACTS (traceable to records) and
- * RECOMMENDATIONS (advice) are always visually separated — PharmaPilot AI
+ * RECOMMENDATIONS (advice) are always visually separated — PharmaNudge
  * never silently alters financial or inventory records.
  */
 
@@ -62,7 +62,7 @@ export function RecommendationsBlock({ items }: { items: string[] }) {
         ))}
       </ol>
       <p className="mt-2.5 border-t border-warning/20 pt-2 text-[11px] text-muted-foreground">
-        Advisory only — PharmaPilot AI never changes financial or inventory records on its own.
+        Advisory only — PharmaNudge never changes financial or inventory records on its own.
       </p>
     </section>
   );

@@ -15,9 +15,9 @@ import { formatNaira, formatNairaSigned } from "@/lib/money";
 export const Route = createFileRoute("/close-day")({
   head: () => ({
     meta: [
-      { title: "Close Day — PharmaPilot AI" },
+      { title: "Close Day — PharmaNudge" },
       { name: "description", content: "Count the drawer, see the variance, close the day with confidence." },
-      { property: "og:title", content: "Close Day — PharmaPilot AI" },
+      { property: "og:title", content: "Close Day — PharmaNudge" },
       { property: "og:description", content: "Daily cash reconciliation and close of day." },
       { property: "og:type", content: "website" },
     ],

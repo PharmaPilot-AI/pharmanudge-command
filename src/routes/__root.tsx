@@ -153,13 +153,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "PharmaPilot AI" },
+      { title: "PharmaNudge" },
       {
         name: "description",
         content:
           "Pharmacy business management and decision intelligence for independent pharmacies in Nigeria.",
       },
-      { property: "og:title", content: "PharmaPilot AI" },
+      { property: "og:title", content: "PharmaNudge" },
       {
         property: "og:description",
         content:

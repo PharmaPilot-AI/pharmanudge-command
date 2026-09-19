@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/expiry")({
   head: () => ({
     meta: [
-      { title: "Expiry Center — PharmaPilot AI" },
+      { title: "Expiry Center — PharmaNudge" },
       { name: "description", content: "Batch-level expiry tracking: what expires when, and the stock value at risk." },
-      { property: "og:title", content: "Expiry Center — PharmaPilot AI" },
+      { property: "og:title", content: "Expiry Center — PharmaNudge" },
       { property: "og:description", content: "Batch-level expiry tracking and value at risk." },
       { property: "og:type", content: "website" },
     ],

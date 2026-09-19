@@ -1,5 +1,5 @@
 /**
- * PharmaPilot AI — domain types.
+ * PharmaNudge — domain types.
  *
  * Framework-light on purpose: no React, router, or backend imports here so
  * these types can be reused unchanged when the real backend (base-unit

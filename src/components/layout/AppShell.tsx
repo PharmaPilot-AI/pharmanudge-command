@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Cross className="h-4.5 w-4.5" aria-hidden />
             </span>
             <span className="truncate text-base font-bold tracking-tight">
-              PharmaPilot <span className="text-primary">AI</span>
+              Pharma<span className="text-primary">Nudge</span>
             </span>
           </Link>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">

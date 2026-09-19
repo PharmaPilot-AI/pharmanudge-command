@@ -28,13 +28,13 @@ import { formatNaira } from "@/lib/money";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "PharmaPilot AI — Pharmacy Command Center" },
+      { title: "PharmaNudge — Pharmacy Command Center" },
       {
         name: "description",
         content:
-          "See today's sales, profit, cash status and stock risks at a glance. PharmaPilot AI is the decision-intelligence platform for Nigerian pharmacies.",
+          "See today's sales, profit, cash status and stock risks at a glance. PharmaNudge is the decision-intelligence platform for Nigerian pharmacies.",
       },
-      { property: "og:title", content: "PharmaPilot AI — Pharmacy Command Center" },
+      { property: "og:title", content: "PharmaNudge — Pharmacy Command Center" },
       {
         property: "og:description",
         content: "Sales, profit, cash and stock health for your pharmacy — understood in 60 seconds.",
@@ -170,7 +170,7 @@ function OwnerHome() {
           </h2>
           <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{dailyBrief}</p>
           <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link to="/ask-ai">Ask PharmaPilot about today</Link>
+            <Link to="/ask-ai">Ask PharmaNudge about today</Link>
           </Button>
         </div>
       </section>

@@ -32,13 +32,13 @@ const getServices = createServerFn({ method: "GET" }).handler(() => listServices
 export const Route = createFileRoute("/services")({
   head: () => ({
     meta: [
-      { title: "Service Catalog — PharmaPilot AI" },
+      { title: "Service Catalog — PharmaNudge" },
       {
         name: "description",
         content:
           "Non-stock services like consultations and tests. Services earn revenue without touching inventory.",
       },
-      { property: "og:title", content: "Service Catalog — PharmaPilot AI" },
+      { property: "og:title", content: "Service Catalog — PharmaNudge" },
       {
         property: "og:description",
         content: "Non-stock services that earn revenue without touching inventory.",

@@ -11,9 +11,9 @@ import { formatNaira } from "@/lib/money";
 export const Route = createFileRoute("/money")({
   head: () => ({
     meta: [
-      { title: "Money — PharmaPilot AI" },
+      { title: "Money — PharmaNudge" },
       { name: "description", content: "How much did I sell, how much did I make, and is my money complete? Revenue, profit and cash reconciliation." },
-      { property: "og:title", content: "Money — PharmaPilot AI" },
+      { property: "og:title", content: "Money — PharmaNudge" },
       { property: "og:description", content: "Revenue, profit and cash reconciliation for your pharmacy." },
       { property: "og:type", content: "website" },
     ],

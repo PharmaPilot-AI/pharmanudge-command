@@ -38,12 +38,12 @@ const getProducts = createServerFn({ method: "GET" }).handler(() => listProducts
 export const Route = createFileRoute("/products")({
   head: () => ({
     meta: [
-      { title: "Products — PharmaPilot AI" },
+      { title: "Products — PharmaNudge" },
       {
         name: "description",
         content: "Your full product catalog with packaging units and shelf locations.",
       },
-      { property: "og:title", content: "Products — PharmaPilot AI" },
+      { property: "og:title", content: "Products — PharmaNudge" },
       { property: "og:description", content: "Full product catalog with shelf locations." },
       { property: "og:type", content: "website" },
     ],

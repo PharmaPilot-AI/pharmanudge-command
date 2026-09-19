@@ -44,13 +44,13 @@ const getPackagingUnits = createServerFn({ method: "GET" })
 export const Route = createFileRoute("/packaging")({
   head: () => ({
     meta: [
-      { title: "Product Packaging Setup — PharmaPilot AI" },
+      { title: "Product Packaging Setup — PharmaNudge" },
       {
         name: "description",
         content:
           "Define selling units per product — tablets, strips, tins — all converting to base units.",
       },
-      { property: "og:title", content: "Product Packaging Setup — PharmaPilot AI" },
+      { property: "og:title", content: "Product Packaging Setup — PharmaNudge" },
       {
         property: "og:description",
         content: "Define selling units per product on the base-unit model.",

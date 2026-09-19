@@ -18,9 +18,9 @@ import { baseStockLabel, expiryTone, formatNaira } from "@/lib/money";
 export const Route = createFileRoute("/inventory")({
   head: () => ({
     meta: [
-      { title: "Inventory Intelligence — PharmaPilot AI" },
+      { title: "Inventory Intelligence — PharmaNudge" },
       { name: "description", content: "What stock am I losing or about to run out of? Low stock, out of stock, expiry risk and value at risk." },
-      { property: "og:title", content: "Inventory Intelligence — PharmaPilot AI" },
+      { property: "og:title", content: "Inventory Intelligence — PharmaNudge" },
       { property: "og:description", content: "Low stock, out of stock, expiry risk and value at risk." },
       { property: "og:type", content: "website" },
     ],

@@ -56,8 +56,8 @@ export const Route = createFileRoute("/login")({
   },
   head: () => ({
     meta: [
-      { title: "Log in — PharmaPilot AI" },
-      { name: "description", content: "Log in to your PharmaPilot AI account." },
+      { title: "Log in — PharmaNudge" },
+      { name: "description", content: "Log in to your PharmaNudge account." },
     ],
   }),
   component: LoginPage,
@@ -110,7 +110,7 @@ function LoginPage() {
             <KeyRound className="h-5 w-5 text-primary" aria-hidden />
             Log in
           </CardTitle>
-          <CardDescription>Sign in to your PharmaPilot AI account.</CardDescription>
+          <CardDescription>Sign in to your PharmaNudge account.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

@@ -34,9 +34,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/inventory-ops")({
   head: () => ({
     meta: [
-      { title: "Inventory Operations — PharmaPilot AI" },
+      { title: "Inventory Operations — PharmaNudge" },
       { name: "description", content: "Detailed stock table with batches, shelf locations, counts and adjustments." },
-      { property: "og:title", content: "Inventory Operations — PharmaPilot AI" },
+      { property: "og:title", content: "Inventory Operations — PharmaNudge" },
       { property: "og:description", content: "Detailed stock table with batches, shelf locations, counts and adjustments." },
       { property: "og:type", content: "website" },
     ],

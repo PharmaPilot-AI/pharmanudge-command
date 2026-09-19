@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/actions")({
   head: () => ({
     meta: [
-      { title: "Action Center — PharmaPilot AI" },
+      { title: "Action Center — PharmaNudge" },
       { name: "description", content: "The top actions your pharmacy needs right now — resolve, snooze or assign them." },
-      { property: "og:title", content: "Action Center — PharmaPilot AI" },
+      { property: "og:title", content: "Action Center — PharmaNudge" },
       { property: "og:description", content: "The top actions your pharmacy needs right now." },
       { property: "og:type", content: "website" },
     ],

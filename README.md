@@ -1,14 +1,14 @@
-# PharmaPilot Command
+# PharmaNudge Command
 
-I am building a SaaS application called PharmaPilot AI.
+I am building a SaaS application called PharmaNudge.
 
-PharmaPilot AI is a mobile-first pharmacy business management and decision-intelligence platform designed initially for independent small and medium-sized pharmacies in Nigeria.
+PharmaNudge is a mobile-first pharmacy business management and decision-intelligence platform designed initially for independent small and medium-sized pharmacies in Nigeria.
 
 IMPORTANT: For this first phase, DO NOT create or modify any database tables, Supabase schema, Edge Functions, authentication backend, APIs, or production business logic. We are establishing the frontend application architecture and design system first. Backend implementation will follow an approved technical architecture.
 
 PRODUCT PURPOSE
 
-PharmaPilot AI helps a pharmacy owner answer five questions quickly:
+PharmaNudge helps a pharmacy owner answer five questions quickly:
 
 1. How much did I sell?
 
@@ -216,7 +216,7 @@ Service Catalog
 
 Product Packaging Setup
 
-Ask PharmaPilot AI
+Ask PharmaNudge
 
 For now these screens may use realistic MOCK DATA.
 
@@ -244,7 +244,7 @@ Amoxicillin 500mg — Out of stock
 
 Stock adjustment — ₦18,000 variance to review
 
-ASK PHARMAPILOT AI SCREEN
+ASK PHARMANUDGE SCREEN
 
 Create a conversational interface.
 

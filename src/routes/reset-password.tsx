@@ -38,8 +38,8 @@ export const Route = createFileRoute("/reset-password")({
   }),
   head: () => ({
     meta: [
-      { title: "Reset password — PharmaPilot AI" },
-      { name: "description", content: "Choose a new password for your PharmaPilot AI account." },
+      { title: "Reset password — PharmaNudge" },
+      { name: "description", content: "Choose a new password for your PharmaNudge account." },
     ],
   }),
   component: ResetPasswordPage,

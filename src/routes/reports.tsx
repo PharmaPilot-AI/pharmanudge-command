@@ -18,9 +18,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/reports")({
   head: () => ({
     meta: [
-      { title: "Reports — PharmaPilot AI" },
+      { title: "Reports — PharmaNudge" },
       { name: "description", content: "Sales, profit, inventory valuation, expiry and service revenue reports." },
-      { property: "og:title", content: "Reports — PharmaPilot AI" },
+      { property: "og:title", content: "Reports — PharmaNudge" },
       { property: "og:description", content: "Sales, profit, inventory and service revenue reports." },
       { property: "og:type", content: "website" },
     ],

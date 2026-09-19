@@ -18,9 +18,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/pos")({
   head: () => ({
     meta: [
-      { title: "Sell / POS — PharmaPilot AI" },
+      { title: "Sell / POS — PharmaNudge" },
       { name: "description", content: "Fast pharmacy point of sale: search by name or barcode, sell in any unit, add services, check out." },
-      { property: "og:title", content: "Sell / POS — PharmaPilot AI" },
+      { property: "og:title", content: "Sell / POS — PharmaNudge" },
       { property: "og:description", content: "Fast pharmacy point of sale with unit-flexible selling." },
       { property: "og:type", content: "website" },
     ],

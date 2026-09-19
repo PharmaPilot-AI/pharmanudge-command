@@ -10,9 +10,9 @@ import { teamMembers } from "@/lib/mock-data";
 export const Route = createFileRoute("/users")({
   head: () => ({
     meta: [
-      { title: "Users & Roles — PharmaPilot AI" },
+      { title: "Users & Roles — PharmaNudge" },
       { name: "description", content: "Team members and their roles. Permissions are enforced server-side in Phase 2." },
-      { property: "og:title", content: "Users & Roles — PharmaPilot AI" },
+      { property: "og:title", content: "Users & Roles — PharmaNudge" },
       { property: "og:description", content: "Team members and their roles." },
       { property: "og:type", content: "website" },
     ],
