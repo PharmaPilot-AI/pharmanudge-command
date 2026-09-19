@@ -376,3 +376,4 @@ npm run dev
 ```
 
 <!-- sync check: nudge commit to re-trigger Lovable's GitHub sync -->
+<!-- rebrand deploy sync check: nudge commit to force a fresh build -->
