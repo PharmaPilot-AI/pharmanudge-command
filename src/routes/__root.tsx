@@ -147,6 +147,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       });
     }
 
+    if (user && !pharmacyContext && !isPublicRoute(location.pathname)) {
+      throw redirect({ to: "/login" });
+    }
+
     return { user, pharmacyContext };
   },
   head: () => ({
