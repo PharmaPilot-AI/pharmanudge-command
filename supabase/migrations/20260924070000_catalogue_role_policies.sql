@@ -20,6 +20,7 @@ as $$
 $$;
 
 revoke execute on function public.can_manage_catalogue(uuid) from public;
+revoke execute on function public.can_manage_catalogue(uuid) from anon;
 grant execute on function public.can_manage_catalogue(uuid) to authenticated;
 
 drop policy if exists products_insert_members on public.products;
