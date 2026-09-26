@@ -68,6 +68,9 @@ export const Route = createFileRoute("/packaging")({
  */
 function PackagingPage() {
   const products = Route.useLoaderData();
+  const { pharmacyContext } = Route.useRouteContext();
+  const canManageCatalogue =
+    pharmacyContext?.role === "owner" || pharmacyContext?.role === "pharmacist";
   const getPackagingUnitsFn = useServerFn(getPackagingUnits);
   const createPackagingUnit = useServerFn(createPackagingUnitMutation);
   const updatePackagingUnit = useServerFn(updatePackagingUnitMutation);
@@ -273,26 +276,28 @@ function PackagingPage() {
                   </p>
                 </div>
                 <p className="font-semibold tabular-nums">{formatNaira(u.price)}</p>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    aria-label={`Edit ${u.label}`}
-                    onClick={() => openEditUnit(u)}
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    aria-label={`Delete ${u.label}`}
-                    onClick={() => setDeletingUnit(u)}
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                  </Button>
-                </div>
+                {canManageCatalogue ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      aria-label={`Edit ${u.label}`}
+                      onClick={() => openEditUnit(u)}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      aria-label={`Delete ${u.label}`}
+                      onClick={() => setDeletingUnit(u)}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ))
           )}
@@ -327,78 +332,80 @@ function PackagingPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">
-            {editingUnit ? `Edit ${editingUnit.label}` : "Add a selling unit"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={handleSubmitUnit}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="unit-label">Unit name</Label>
-              <Input
-                id="unit-label"
-                placeholder="e.g. Sachet of 4"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                className="h-11"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="unit-per">= how many {product.base_unit_label}s?</Label>
-              <Input
-                id="unit-per"
-                type="number"
-                min={1}
-                inputMode="numeric"
-                placeholder="e.g. 4"
-                value={perBase}
-                onChange={(e) => setPerBase(e.target.value)}
-                className="h-11 tabular-nums"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="unit-price">Price (₦)</Label>
-              <Input
-                id="unit-price"
-                type="number"
-                min={0}
-                inputMode="decimal"
-                placeholder="0"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="h-11 tabular-nums"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" className="h-11" disabled={isSubmitting}>
-                {isSubmitting
-                  ? editingUnit
-                    ? "Saving…"
-                    : "Creating…"
-                  : editingUnit
-                    ? "Save changes"
-                    : "Add unit"}
-              </Button>
-              {editingUnit ? (
-                <Button
-                  type="button"
-                  variant="outline"
+      {canManageCatalogue ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">
+              {editingUnit ? `Edit ${editingUnit.label}` : "Add a selling unit"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={handleSubmitUnit}
+              className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:items-end"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="unit-label">Unit name</Label>
+                <Input
+                  id="unit-label"
+                  placeholder="e.g. Sachet of 4"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
                   className="h-11"
-                  onClick={resetForm}
-                  disabled={isSubmitting}
-                >
-                  Cancel
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="unit-per">= how many {product.base_unit_label}s?</Label>
+                <Input
+                  id="unit-per"
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="e.g. 4"
+                  value={perBase}
+                  onChange={(e) => setPerBase(e.target.value)}
+                  className="h-11 tabular-nums"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="unit-price">Price (₦)</Label>
+                <Input
+                  id="unit-price"
+                  type="number"
+                  min={0}
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="h-11 tabular-nums"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" className="h-11" disabled={isSubmitting}>
+                  {isSubmitting
+                    ? editingUnit
+                      ? "Saving…"
+                      : "Creating…"
+                    : editingUnit
+                      ? "Save changes"
+                      : "Add unit"}
                 </Button>
-              ) : null}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                {editingUnit ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11"
+                    onClick={resetForm}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

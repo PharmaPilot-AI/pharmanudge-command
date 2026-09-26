@@ -53,6 +53,9 @@ export const Route = createFileRoute("/services")({
 /** Service catalog — services generate revenue but never reduce inventory. */
 function ServicesPage() {
   const services = Route.useLoaderData();
+  const { pharmacyContext } = Route.useRouteContext();
+  const canManageCatalogue =
+    pharmacyContext?.role === "owner" || pharmacyContext?.role === "pharmacist";
   const router = useRouter();
   const createService = useServerFn(createServiceMutation);
   const updateService = useServerFn(updateServiceMutation);
@@ -148,26 +151,28 @@ function ServicesPage() {
               </p>
             </div>
             <p className="shrink-0 text-sm font-bold tabular-nums">{formatNaira(s.price)}</p>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                aria-label={`Edit ${s.name}`}
-                onClick={() => openEditService(s)}
-              >
-                <Pencil className="h-4 w-4" aria-hidden />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-destructive hover:text-destructive"
-                aria-label={`Delete ${s.name}`}
-                onClick={() => setDeletingService(s)}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-              </Button>
-            </div>
+            {canManageCatalogue ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  aria-label={`Edit ${s.name}`}
+                  onClick={() => openEditService(s)}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  aria-label={`Delete ${s.name}`}
+                  onClick={() => setDeletingService(s)}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -200,65 +205,67 @@ function ServicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">
-            {editingService ? `Edit ${editingService.name}` : "Add a service"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={handleSubmitService}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="svc-name">Service name</Label>
-              <Input
-                id="svc-name"
-                placeholder="e.g. Typhoid test (Widal)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-11"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="svc-price">Price (₦)</Label>
-              <Input
-                id="svc-price"
-                type="number"
-                min={0}
-                inputMode="decimal"
-                placeholder="0"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="h-11 tabular-nums"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" className="h-11" disabled={isSubmitting}>
-                {isSubmitting
-                  ? editingService
-                    ? "Saving…"
-                    : "Adding…"
-                  : editingService
-                    ? "Save changes"
-                    : "Add service"}
-              </Button>
-              {editingService ? (
-                <Button
-                  type="button"
-                  variant="outline"
+      {canManageCatalogue ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">
+              {editingService ? `Edit ${editingService.name}` : "Add a service"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={handleSubmitService}
+              className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="svc-name">Service name</Label>
+                <Input
+                  id="svc-name"
+                  placeholder="e.g. Typhoid test (Widal)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="h-11"
-                  onClick={resetForm}
-                  disabled={isSubmitting}
-                >
-                  Cancel
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="svc-price">Price (₦)</Label>
+                <Input
+                  id="svc-price"
+                  type="number"
+                  min={0}
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="h-11 tabular-nums"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit" className="h-11" disabled={isSubmitting}>
+                  {isSubmitting
+                    ? editingService
+                      ? "Saving…"
+                      : "Adding…"
+                    : editingService
+                      ? "Save changes"
+                      : "Add service"}
                 </Button>
-              ) : null}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                {editingService ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11"
+                    onClick={resetForm}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
