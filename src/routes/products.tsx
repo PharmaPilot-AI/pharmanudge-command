@@ -65,7 +65,10 @@ const emptyProductForm = {
 /** Product catalog browser with create, edit, and delete. */
 function ProductsPage() {
   const products = Route.useLoaderData();
+  const { pharmacyContext } = Route.useRouteContext();
   const router = useRouter();
+  const canManageCatalogue =
+    pharmacyContext?.role === "owner" || pharmacyContext?.role === "pharmacist";
   const createProduct = useServerFn(createProductMutation);
   const updateProduct = useServerFn(updateProductMutation);
   const deleteProduct = useServerFn(deleteProductMutation);
@@ -177,10 +180,12 @@ function ProductsPage() {
         title="Products"
         description={`${products.length} products in the catalog.`}
         actions={
-          <Button size="sm" className="gap-1" onClick={openAddDialog}>
-            <PackagePlus className="h-4 w-4" aria-hidden />
-            Add product
-          </Button>
+          canManageCatalogue ? (
+            <Button size="sm" className="gap-1" onClick={openAddDialog}>
+              <PackagePlus className="h-4 w-4" aria-hidden />
+              Add product
+            </Button>
+          ) : undefined
         }
       />
 
@@ -335,26 +340,28 @@ function ProductsPage() {
                   <p className="truncate text-sm font-semibold">{p.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{p.generic_name}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    aria-label={`Edit ${p.name}`}
-                    onClick={() => openEditDialog(p)}
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    aria-label={`Delete ${p.name}`}
-                    onClick={() => setDeletingProduct(p)}
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                  </Button>
-                </div>
+                {canManageCatalogue ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      aria-label={`Edit ${p.name}`}
+                      onClick={() => openEditDialog(p)}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      aria-label={`Delete ${p.name}`}
+                      onClick={() => setDeletingProduct(p)}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </div>
+                ) : null}
               </div>
               <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
                 {p.shelf_location}
