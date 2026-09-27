@@ -64,7 +64,7 @@ export const Route = createFileRoute("/packaging")({
 
 /**
  * Packaging setup: products are stocked in base units; packaging/selling
- * units are conversions on top (1 tin = 100 tablets).
+ * units define how many base units are deducted per sale.
  */
 function PackagingPage() {
   const products = Route.useLoaderData();
@@ -233,9 +233,8 @@ function PackagingPage() {
         <Layers className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
         <p>
           Base-unit model: {product.name} is stocked as{" "}
-          <span className="font-medium text-foreground">{product.base_unit_label}s</span>. Selling
-          units are conversions on top, so a sale of 1 tin always deducts exactly 100{" "}
-          {product.base_unit_label}s.
+          <span className="font-medium text-foreground">{product.base_unit_label}s</span>. Each
+          selling unit deducts the number of {product.base_unit_label}s configured for that unit.
         </p>
       </div>
 
