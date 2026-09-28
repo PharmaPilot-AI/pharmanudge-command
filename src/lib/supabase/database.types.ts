@@ -226,6 +226,15 @@ export type Database = {
         Args: { target_pharmacy_id: string }
         Returns: boolean
       }
+      list_pharmacy_members: {
+        Args: { target_pharmacy_id: string }
+        Returns: {
+          email: string
+          is_active: boolean
+          role: Database["public"]["Enums"]["pharmacy_role"]
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       pharmacy_role: "owner" | "pharmacist" | "cashier" | "accountant"
