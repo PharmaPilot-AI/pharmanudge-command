@@ -13,14 +13,16 @@ import { SyncStatusPill } from "./SyncStatusPill";
  * labeled sidebar on desktop. The nav contents come from the user's mode.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { mode } = useAppMode();
+  const { member, mode } = useAppMode();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const items = mode === "owner" ? ownerNav : opsNav;
+  const visibleOpsNav =
+    member.role === "owner" ? opsNav : opsNav.filter((item) => item.to !== "/users");
+  const items = mode === "owner" ? ownerNav : visibleOpsNav;
   const mobilePrimary =
     mode === "owner"
       ? ownerNav
-      : opsNav.filter((i) => opsMobilePrimaryPaths.includes(i.to as string));
+      : visibleOpsNav.filter((i) => opsMobilePrimaryPaths.includes(i.to as string));
 
   return (
     <div className="min-h-dvh bg-background">
@@ -55,9 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-12 lg:pt-6">
-          {children}
-        </main>
+        <main className="min-w-0 flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-12 lg:pt-6">{children}</main>
       </div>
 
       {/* Mobile bottom navigation */}
@@ -67,7 +67,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div
           className="mx-auto grid max-w-lg"
-          style={{ gridTemplateColumns: `repeat(${mobilePrimary.length + (mode === "ops" ? 1 : 0)}, minmax(0, 1fr))` }}
+          style={{
+            gridTemplateColumns: `repeat(${mobilePrimary.length + (mode === "ops" ? 1 : 0)}, minmax(0, 1fr))`,
+          }}
         >
           {mobilePrimary.map((item) => (
             <BottomNavLink key={item.to as string} item={item} />
@@ -87,7 +89,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Mobile ops menu overlay */}
       {menuOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end lg:hidden" role="dialog" aria-modal="true" aria-label="All operations screens">
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="All operations screens"
+        >
           <button
             type="button"
             aria-label="Close menu"
@@ -107,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              {opsNav.map((item) => (
+              {visibleOpsNav.map((item) => (
                 <Link
                   key={item.to as string}
                   to={item.to}
@@ -132,7 +139,10 @@ function SidebarLink({ item }: { item: NavItem }) {
       to={item.to}
       activeOptions={{ exact: item.to === "/" }}
       className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      activeProps={{ className: "bg-secondary text-secondary-foreground hover:bg-secondary hover:text-secondary-foreground" }}
+      activeProps={{
+        className:
+          "bg-secondary text-secondary-foreground hover:bg-secondary hover:text-secondary-foreground",
+      }}
     >
       <item.icon className="h-4.5 w-4.5 shrink-0" aria-hidden />
       {item.label}

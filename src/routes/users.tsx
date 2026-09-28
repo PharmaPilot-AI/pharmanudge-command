@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { ShieldCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -8,10 +8,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { teamMembers } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/users")({
+  beforeLoad: ({ context }) => {
+    if (context.pharmacyContext?.role !== "owner") {
+      throw redirect({
+        to: context.pharmacyContext?.role === "accountant" ? "/reports" : "/pos",
+      });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Users & Roles — PharmaNudge" },
-      { name: "description", content: "Team members and their roles. Permissions are enforced server-side in Phase 2." },
+      {
+        name: "description",
+        content: "Team members and their roles. Permissions are enforced server-side in Phase 2.",
+      },
       { property: "og:title", content: "Users & Roles — PharmaNudge" },
       { property: "og:description", content: "Team members and their roles." },
       { property: "og:type", content: "website" },
@@ -35,7 +45,11 @@ function UsersPage() {
         title="Users & Roles"
         description="Who can do what. Role permissions will be enforced server-side in Phase 2."
         actions={
-          <Button size="sm" className="gap-1" onClick={() => toast.info("Invitations arrive with real authentication in Phase 2")}>
+          <Button
+            size="sm"
+            className="gap-1"
+            onClick={() => toast.info("Invitations arrive with real authentication in Phase 2")}
+          >
             <UserPlus className="h-4 w-4" aria-hidden />
             Invite
           </Button>
@@ -64,9 +78,9 @@ function UsersPage() {
       <div className="flex items-start gap-2 rounded-xl border border-info/30 bg-info/5 p-3.5 text-sm text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
         <p>
-          Phase 1 shows the whole app to every mock user. With real authentication, the server
-          will enforce what each role can see and do — the interface will never be the only
-          line of defence.
+          Phase 1 shows the whole app to every mock user. With real authentication, the server will
+          enforce what each role can see and do — the interface will never be the only line of
+          defence.
         </p>
       </div>
     </div>
