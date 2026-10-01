@@ -34,3 +34,40 @@ export async function listPharmacyMembers(
   if (error) throw error;
   return data;
 }
+
+export type PharmacyRole = Database["public"]["Enums"]["pharmacy_role"];
+
+/**
+ * Changes a member's role or active status. The caller must be an active
+ * owner. The database function repeats the authorization check and prevents
+ * removal of the pharmacy's last active owner.
+ */
+export async function updatePharmacyMember(
+  targetUserId: string,
+  newRole: PharmacyRole,
+  newIsActive: boolean,
+  client?: SupabaseClient<Database>,
+): Promise<PharmacyMemberDirectoryRow> {
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId, role } = await requirePharmacyContext(resolvedClient);
+
+  if (role !== "owner") {
+    throw new Error("Only pharmacy owners can manage team members.");
+  }
+
+  const { data, error } = await resolvedClient.rpc("update_pharmacy_member", {
+    target_pharmacy_id: pharmacyId,
+    target_user_id: targetUserId,
+    new_role: newRole,
+    new_is_active: newIsActive,
+  });
+
+  if (error) throw error;
+
+  const updatedMember = data?.[0];
+  if (!updatedMember) {
+    throw new Error("The member update did not return a result.");
+  }
+
+  return updatedMember;
+}
