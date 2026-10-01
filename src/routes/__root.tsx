@@ -134,21 +134,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
     if (!user && !isPublicRoute(location.pathname)) {
       throw redirect({
-        // "/login" doesn't exist as a registered route until Checkpoint 6
-        // creates src/routes/login.tsx, so TanStack Router's route-tree-
-        // derived `to`/`search` typing can't yet verify this call. Both
-        // casts become redundant (but harmless) once that route exists;
-        // safe now because redirect()'s runtime behavior never depends on
-        // this compile-time route-tree check.
-        to: "/login" as any,
+        to: "/login",
         search: {
           redirect: isAllowedRedirect(location.pathname) ? location.pathname : undefined,
-        } as any,
+        },
       });
     }
 
     if (user && !pharmacyContext && !isPublicRoute(location.pathname)) {
-      throw redirect({ to: "/login" });
+      throw redirect({ to: "/login", search: { redirect: undefined } });
     }
 
     return { user, pharmacyContext };
