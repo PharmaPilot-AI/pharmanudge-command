@@ -62,7 +62,16 @@ export async function updatePharmacyMember(
     new_is_active: newIsActive,
   });
 
-  if (error) throw error;
+  if (error) {
+    if (
+      error.code === "23514" &&
+      error.message === "The last active owner cannot be demoted or deactivated."
+    ) {
+      throw new Error("The last active owner cannot be demoted or deactivated.");
+    }
+
+    throw new Error("Unable to update member access. Please try again.");
+  }
 
   const updatedMember = data?.[0];
   if (!updatedMember) {
