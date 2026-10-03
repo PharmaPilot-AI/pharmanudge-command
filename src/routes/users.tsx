@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -19,7 +20,11 @@ import {
   type PharmacyMemberDirectoryRow,
   type PharmacyRole,
 } from "@/lib/data/pharmacy-members";
-import { updatePharmacyMemberMutation } from "@/lib/data/validation";
+import {
+  updatePharmacyMemberMutation,
+  listPharmacyInvitationsQuery,
+  cancelPharmacyInvitationMutation,
+} from "@/lib/data/validation";
 
 const getPharmacyMembers = createServerFn({ method: "GET" }).handler(() => listPharmacyMembers());
 
@@ -31,7 +36,13 @@ export const Route = createFileRoute("/users")({
       });
     }
   },
-  loader: () => getPharmacyMembers(),
+  loader: async () => {
+    const [members, invitations] = await Promise.all([
+      getPharmacyMembers(),
+      listPharmacyInvitationsQuery(),
+    ]);
+    return { members, invitations };
+  },
   head: () => ({
     meta: [
       { title: "Users & Roles — PharmaNudge" },
@@ -70,9 +81,11 @@ function initialsFromEmail(email: string): string {
 
 /** Real, owner-only pharmacy member directory and access management. */
 function UsersPage() {
-  const members = Route.useLoaderData();
+  const { members, invitations } = Route.useLoaderData();
   const router = useRouter();
   const updateMember = useServerFn(updatePharmacyMemberMutation);
+  const cancelInvitation = useServerFn(cancelPharmacyInvitationMutation);
+  const [cancellingInvitationId, setCancellingInvitationId] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const updateInFlight = useRef(false);
 
@@ -102,6 +115,25 @@ function UsersPage() {
       setSavingUserId(null);
     }
   };
+
+  const handleCancelInvitation = async (id: string) => {
+    if (updateInFlight.current) return;
+    updateInFlight.current = true;
+    setCancellingInvitationId(id);
+
+    try {
+      await cancelInvitation({ data: { id } });
+      await router.invalidate();
+      toast.success("Invitation cancelled");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel invitation");
+    } finally {
+      updateInFlight.current = false;
+      setCancellingInvitationId(null);
+    }
+  };
+
+  const isBusy = savingUserId !== null || cancellingInvitationId !== null;
 
   return (
     <div className="flex max-w-3xl flex-col gap-5">
@@ -143,7 +175,7 @@ function UsersPage() {
                     onValueChange={(value) =>
                       void handleUpdateMember(member, { role: value as PharmacyRole })
                     }
-                    disabled={savingUserId !== null}
+                    disabled={isBusy}
                   >
                     <SelectTrigger className="h-9 w-36" aria-label={`Role for ${member.email}`}>
                       <SelectValue />
@@ -163,7 +195,7 @@ function UsersPage() {
                       onCheckedChange={(isActive) =>
                         void handleUpdateMember(member, { is_active: isActive })
                       }
-                      disabled={savingUserId !== null}
+                      disabled={isBusy}
                       aria-label={`${member.is_active ? "Deactivate" : "Activate"} ${member.email}`}
                     />
                     <span className="w-14 text-xs text-muted-foreground">
@@ -176,6 +208,53 @@ function UsersPage() {
           );
         })}
       </div>
+
+      <section className="flex flex-col gap-2.5" aria-labelledby="invitations-heading">
+        <h2 id="invitations-heading" className="text-lg font-semibold">
+          Invitations
+        </h2>
+        {invitations.length === 0 ? (
+          <p className="rounded-xl border p-3.5 text-sm text-muted-foreground">
+            No invitations yet.
+          </p>
+        ) : (
+          invitations.map((invitation) => (
+            <Card key={invitation.id}>
+              <CardContent className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{invitation.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {roleLabels[invitation.role]} · Expires{" "}
+                    {new Intl.DateTimeFormat("en-GB", {
+                      timeZone: "Africa/Lagos",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }).format(new Date(invitation.expires_at))}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="capitalize">
+                    {invitation.status}
+                  </Badge>
+                  {invitation.status === "pending" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBusy}
+                      aria-label={`Cancel invitation for ${invitation.email}`}
+                      onClick={() => void handleCancelInvitation(invitation.id)}
+                    >
+                      {cancellingInvitationId === invitation.id ? "Cancelling…" : "Cancel"}
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </section>
 
       <div className="flex items-start gap-2 rounded-xl border border-info/30 bg-info/5 p-3.5 text-sm text-muted-foreground">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
