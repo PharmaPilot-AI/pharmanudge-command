@@ -222,6 +222,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_pharmacy_invitation: {
+        Args: {
+          target_pharmacy_id: string
+          invitation_email: string
+          invitation_role: Database["public"]["Enums"]["pharmacy_role"]
+        }
+        Returns: string
+      }
+      list_pharmacy_invitations: {
+        Args: { target_pharmacy_id: string }
+        Returns: {
+          id: string
+          email: string
+          role: Database["public"]["Enums"]["pharmacy_role"]
+          status: string
+          expires_at: string
+          created_at: string
+        }[]
+      }
+      cancel_pharmacy_invitation: {
+        Args: {
+          target_pharmacy_id: string
+          target_invitation_id: string
+        }
+        Returns: string
+      }
       is_pharmacy_member: {
         Args: { target_pharmacy_id: string }
         Returns: boolean

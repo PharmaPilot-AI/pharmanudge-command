@@ -4,6 +4,11 @@ import { createProduct, updateProduct, deleteProduct } from "./products";
 import { createService, updateService, deleteService } from "./services";
 import { createPackagingUnit, updatePackagingUnit, deletePackagingUnit } from "./packaging-units";
 import { updatePharmacyMember } from "./pharmacy-members";
+import {
+  listPharmacyInvitations,
+  createPharmacyInvitation,
+  cancelPharmacyInvitation,
+} from "./pharmacy-invitations";
 
 /**
  * Checkpoint 3 — server mutation + validation foundation.
@@ -140,3 +145,22 @@ const pharmacyMemberUpdateSchema = z.object({
 export const updatePharmacyMemberMutation = createServerFn({ method: "POST" })
   .validator((input: unknown) => pharmacyMemberUpdateSchema.parse(input))
   .handler(({ data }) => updatePharmacyMember(data.target_user_id, data.role, data.is_active));
+
+// --- Pharmacy invitations ---
+
+const pharmacyInvitationCreateSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  role: z.enum(["pharmacist", "cashier", "accountant"]),
+});
+
+export const listPharmacyInvitationsQuery = createServerFn({ method: "GET" }).handler(() =>
+  listPharmacyInvitations(),
+);
+
+export const createPharmacyInvitationMutation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => pharmacyInvitationCreateSchema.parse(input))
+  .handler(({ data }) => createPharmacyInvitation(data.email, data.role));
+
+export const cancelPharmacyInvitationMutation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => idSchema.parse(input))
+  .handler(({ data }) => cancelPharmacyInvitation(data.id));
