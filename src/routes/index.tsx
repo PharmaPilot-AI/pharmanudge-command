@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   ArrowRight,
   Banknote,
@@ -15,6 +15,7 @@ import { ActionCard } from "@/components/actions/ActionCard";
 import { KpiCard } from "@/components/kpi/KpiCard";
 import { ReconciliationBadge } from "@/components/kpi/ReconciliationBadge";
 import { useAppMode } from "@/lib/app-mode";
+import { resolveHome } from "@/lib/auth/redirect";
 import {
   expiringBatches,
   initialActions,
@@ -26,6 +27,12 @@ import {
 import { formatNaira } from "@/lib/money";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: ({ context }) => {
+    const role = context.pharmacyContext?.role;
+    if (role && role !== "owner") {
+      throw redirect({ to: resolveHome(role) });
+    }
+  },
   head: () => ({
     meta: [
       { title: "PharmaNudge — Pharmacy Command Center" },
@@ -37,7 +44,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "PharmaNudge — Pharmacy Command Center" },
       {
         property: "og:description",
-        content: "Sales, profit, cash and stock health for your pharmacy — understood in 60 seconds.",
+        content:
+          "Sales, profit, cash and stock health for your pharmacy — understood in 60 seconds.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -60,9 +68,7 @@ function OwnerHome() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6 lg:max-w-none">
       {/* Greeting */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-          Good morning, {firstName}
-        </h1>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Good morning, {firstName}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Sunday, 23 August 2026 · Here is your pharmacy at a glance.
         </p>
