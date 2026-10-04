@@ -6,15 +6,7 @@ import { createServerSupabaseClient } from "../supabase/server";
 import { clearSessionCookie, readSessionData, writeSessionData } from "./session";
 import { getSiteUrl } from "./site-url";
 
-/**
- * A fresh, never-persisted anon-key client for the password-recovery flow.
- * `flowType: "pkce"` ensures the recovery email link carries an opaque,
- * single-use `code` query param rather than access/refresh tokens in a URL
- * fragment — the browser only ever sees that code, never a real Supabase
- * token, preserving this app's server-only token handling (no parallel
- * browser/localStorage Supabase session, matching src/lib/supabase/client.ts
- * remaining unused for auth purposes).
- */
+/** Fresh server-only client for recovery-token verification. */
 function createRecoveryClient() {
   const env = getServerSupabaseEnv();
   return createClient(env.APP_SUPABASE_URL, env.APP_SUPABASE_ANON_KEY, {
@@ -22,7 +14,7 @@ function createRecoveryClient() {
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
-      flowType: "pkce",
+      flowType: "implicit",
     },
   });
 }
@@ -76,7 +68,7 @@ export const requestPasswordResetAction = createServerFn({ method: "POST" })
   });
 
 const resetPasswordSchema = z.object({
-  code: z.string().min(1),
+  tokenHash: z.string().min(1).max(256),
   newPassword: z.string().min(8),
 });
 
@@ -92,11 +84,10 @@ export const completePasswordResetAction = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const client = createRecoveryClient();
 
-    // Exchanges the one-time code for a recovery session entirely
-    // server-side — this is the server-only substitute for the client-side
-    // PASSWORD_RECOVERY auth-state event: only a genuinely valid, unexpired,
-    // unused code reaches the updateUser call below.
-    const exchange = await client.auth.exchangeCodeForSession(data.code).catch(() => null);
+    // Verify the recovery token only on explicit password submission.
+    const exchange = await client.auth
+      .verifyOtp({ token_hash: data.tokenHash, type: "recovery" })
+      .catch(() => null);
     if (!exchange || exchange.error || !exchange.data.session) {
       throw new Error(GENERIC_RESET_ERROR);
     }
@@ -105,9 +96,8 @@ export const completePasswordResetAction = createServerFn({ method: "POST" })
     if (!update || update.error) {
       throw new Error(GENERIC_RESET_ERROR);
     }
-    // The recovery session lived only on this ephemeral, never-persisted
-    // client instance — nothing was ever written to a cookie or elsewhere,
-    // so there is nothing further to clear once this handler returns.
+    await client.auth.signOut({ scope: "local" }).catch(() => undefined);
+    await clearSessionCookie();
   });
 
 export const logoutAction = createServerFn({ method: "POST" }).handler(async () => {

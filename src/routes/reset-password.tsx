@@ -34,21 +34,23 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordFormSchema>;
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: (search: Record<string, unknown>) => ({
-    code: typeof search["code"] === "string" ? search["code"] : undefined,
+    tokenHash: typeof search["token_hash"] === "string" ? search["token_hash"] : undefined,
   }),
   head: () => ({
     meta: [
       { title: "Reset password — PharmaNudge" },
       { name: "description", content: "Choose a new password for your PharmaNudge account." },
+      { name: "robots", content: "noindex, nofollow" },
+      { name: "referrer", content: "no-referrer" },
     ],
   }),
   component: ResetPasswordPage,
 });
 
 function ResetPasswordPage() {
-  const { code } = Route.useSearch();
+  const { tokenHash } = Route.useSearch();
 
-  if (!code) {
+  if (!tokenHash) {
     return (
       <div className="flex min-h-dvh items-center justify-center px-4">
         <EmptyState
@@ -62,15 +64,13 @@ function ResetPasswordPage() {
     );
   }
 
-  return <ResetPasswordForm code={code} />;
+  return <ResetPasswordForm tokenHash={tokenHash} />;
 }
 
 /**
- * The code is only exchanged on explicit submit, never on page load — an
- * email-scanner/link-preview bot visiting this URL early must not be able
- * to burn the single-use recovery code before the real user submits.
+ * Verify the recovery token only on explicit submit, never on page load.
  */
-function ResetPasswordForm({ code }: { code: string }) {
+function ResetPasswordForm({ tokenHash }: { tokenHash: string }) {
   const navigate = useNavigate();
   const completeReset = useServerFn(completePasswordResetAction);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,7 +83,7 @@ function ResetPasswordForm({ code }: { code: string }) {
   const onSubmit = async (values: ResetPasswordFormValues) => {
     setIsSubmitting(true);
     try {
-      await completeReset({ data: { code, newPassword: values.newPassword } });
+      await completeReset({ data: { tokenHash, newPassword: values.newPassword } });
       toast.success("Password updated. You can now log in.");
       await navigate({ to: "/login", search: { redirect: undefined } });
     } catch (error) {
