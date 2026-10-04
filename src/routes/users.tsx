@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import type { PharmacyInvitationRole } from "@/lib/data/pharmacy-invitations";
 import {
   Select,
   SelectContent,
@@ -24,6 +26,7 @@ import {
   updatePharmacyMemberMutation,
   listPharmacyInvitationsQuery,
   cancelPharmacyInvitationMutation,
+  createPharmacyInvitationMutation,
 } from "@/lib/data/validation";
 
 const getPharmacyMembers = createServerFn({ method: "GET" }).handler(() => listPharmacyMembers());
@@ -85,6 +88,10 @@ function UsersPage() {
   const router = useRouter();
   const updateMember = useServerFn(updatePharmacyMemberMutation);
   const cancelInvitation = useServerFn(cancelPharmacyInvitationMutation);
+  const createInvitation = useServerFn(createPharmacyInvitationMutation);
+  const [invitationEmail, setInvitationEmail] = useState("");
+  const [invitationRole, setInvitationRole] = useState<PharmacyInvitationRole>("pharmacist");
+  const [isCreatingInvitation, setIsCreatingInvitation] = useState(false);
   const [cancellingInvitationId, setCancellingInvitationId] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const updateInFlight = useRef(false);
@@ -133,7 +140,44 @@ function UsersPage() {
     }
   };
 
-  const isBusy = savingUserId !== null || cancellingInvitationId !== null;
+  const handleCreateInvitation = async () => {
+    if (updateInFlight.current) return;
+    updateInFlight.current = true;
+    setIsCreatingInvitation(true);
+
+    try {
+      await createInvitation({
+        data: { email: invitationEmail.trim().toLowerCase(), role: invitationRole },
+      });
+      setInvitationEmail("");
+      toast.success("Invitation created. Copy its link and share it with the recipient.");
+
+      try {
+        await router.invalidate();
+      } catch {
+        toast.error("Invitation created, but the list could not refresh. Reload this page.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create invitation");
+    } finally {
+      updateInFlight.current = false;
+      setIsCreatingInvitation(false);
+    }
+  };
+
+  const handleCopyInvitationLink = async (id: string) => {
+    const link = new URL("/accept-invitation", window.location.origin);
+    link.searchParams.set("invitation", id);
+
+    try {
+      await navigator.clipboard.writeText(link.toString());
+      toast.success("Invitation link copied");
+    } catch {
+      toast.error("Unable to copy. Right-click Open link and choose Copy link address.");
+    }
+  };
+
+  const isBusy = savingUserId !== null || cancellingInvitationId !== null || isCreatingInvitation;
 
   return (
     <div className="flex max-w-3xl flex-col gap-5">
@@ -213,6 +257,67 @@ function UsersPage() {
         <h2 id="invitations-heading" className="text-lg font-semibold">
           Invitations
         </h2>
+        <Card>
+          <CardContent className="p-3.5">
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleCreateInvitation();
+              }}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="invitation-email" className="mb-1.5 block text-sm font-medium">
+                    Staff email
+                  </label>
+                  <Input
+                    id="invitation-email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="staff@example.com"
+                    required
+                    maxLength={254}
+                    value={invitationEmail}
+                    onChange={(event) => setInvitationEmail(event.target.value)}
+                    disabled={isBusy}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="invitation-role" className="mb-1.5 block text-sm font-medium">
+                    Staff role
+                  </label>
+                  <Select
+                    value={invitationRole}
+                    onValueChange={(value) => {
+                      if (value === "pharmacist" || value === "cashier" || value === "accountant") {
+                        setInvitationRole(value);
+                      }
+                    }}
+                    disabled={isBusy}
+                  >
+                    <SelectTrigger id="invitation-role" className="w-full sm:w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                      <SelectItem value="cashier">Cashier</SelectItem>
+                      <SelectItem value="accountant">Accountant</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" disabled={isBusy || !invitationEmail.trim()}>
+                  {isCreatingInvitation ? "Creating…" : "Create invitation"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Invitations expire after seven days. Copy and share the link manually; no email is
+                sent automatically. The recipient needs a verified account with this email address
+                to accept.
+              </p>
+            </form>
+          </CardContent>
+        </Card>
         {invitations.length === 0 ? (
           <p className="rounded-xl border p-3.5 text-sm text-muted-foreground">
             No invitations yet.
@@ -233,21 +338,42 @@ function UsersPage() {
                     }).format(new Date(invitation.expires_at))}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Badge variant="outline" className="capitalize">
                     {invitation.status}
                   </Badge>
                   {invitation.status === "pending" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isBusy}
-                      aria-label={`Cancel invitation for ${invitation.email}`}
-                      onClick={() => void handleCancelInvitation(invitation.id)}
-                    >
-                      {cancellingInvitationId === invitation.id ? "Cancelling…" : "Cancel"}
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isBusy}
+                        aria-label={`Copy invitation link for ${invitation.email}`}
+                        onClick={() => void handleCopyInvitationLink(invitation.id)}
+                      >
+                        Copy link
+                      </Button>
+                      <a
+                        className="text-sm text-primary underline"
+                        href={`/accept-invitation?invitation=${encodeURIComponent(invitation.id)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Open invitation for ${invitation.email}`}
+                      >
+                        Open link
+                      </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isBusy}
+                        aria-label={`Cancel invitation for ${invitation.email}`}
+                        onClick={() => void handleCancelInvitation(invitation.id)}
+                      >
+                        {cancellingInvitationId === invitation.id ? "Cancelling…" : "Cancel"}
+                      </Button>
+                    </>
                   )}
                 </div>
               </CardContent>
