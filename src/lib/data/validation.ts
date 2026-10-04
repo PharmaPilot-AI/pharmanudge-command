@@ -8,6 +8,7 @@ import {
   listPharmacyInvitations,
   createPharmacyInvitation,
   cancelPharmacyInvitation,
+  acceptPharmacyInvitation,
 } from "./pharmacy-invitations";
 
 /**
@@ -164,3 +165,7 @@ export const createPharmacyInvitationMutation = createServerFn({ method: "POST" 
 export const cancelPharmacyInvitationMutation = createServerFn({ method: "POST" })
   .validator((input: unknown) => idSchema.parse(input))
   .handler(({ data }) => cancelPharmacyInvitation(data.id));
+
+export const acceptPharmacyInvitationMutation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => idSchema.parse(input))
+  .handler(({ data }) => acceptPharmacyInvitation(data.id));

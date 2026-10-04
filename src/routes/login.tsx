@@ -42,10 +42,22 @@ function resolveLoginTarget(redirectParam: string | undefined, role: Role | unde
 }
 
 export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirect: typeof search["redirect"] === "string" ? search["redirect"] : undefined,
-  }),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { redirect: string | undefined; invitation?: string } => {
+    const invitation = z.string().uuid().safeParse(search["invitation"]);
+    return {
+      redirect: typeof search["redirect"] === "string" ? search["redirect"] : undefined,
+      ...(invitation.success ? { invitation: invitation.data } : {}),
+    };
+  },
   beforeLoad: ({ context, search }) => {
+    if (context.user && search.invitation) {
+      throw redirect({
+        to: "/accept-invitation",
+        search: { invitation: search.invitation },
+      });
+    }
     // Only redirect away once fully authenticated (a real session AND an
     // active pharmacy membership) — an authenticated-but-unaffiliated
     // session stays on this page to render the no-membership state below,
@@ -82,6 +94,13 @@ function LoginPage() {
       // Role isn't known yet at this point (context here predates the
       // login that just happened) — falls back to resolveHome(undefined),
       // i.e. "/", when there's no valid redirect target.
+      if (search.invitation) {
+        // Reload the root session context after writing the login cookie.
+        window.location.assign(
+          `/accept-invitation?invitation=${encodeURIComponent(search.invitation)}`,
+        );
+        return;
+      }
       await navigate({ to: resolveLoginTarget(search.redirect, undefined) });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to log in.");

@@ -93,7 +93,12 @@ interface AuthRouteContext {
  * /login here — the recovery flow must be reachable and presentable to a
  * signed-out visitor same as login itself).
  */
-const PUBLIC_ROUTE_PATHS = ["/login", "/forgot-password", "/reset-password"] as const;
+const PUBLIC_ROUTE_PATHS = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/accept-invitation",
+] as const;
 
 function isPublicRoute(pathname: string): boolean {
   return (PUBLIC_ROUTE_PATHS as readonly string[]).includes(pathname);

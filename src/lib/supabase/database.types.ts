@@ -222,6 +222,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_pharmacy_invitation: {
+        Args: { target_invitation_id: string }
+        Returns: string
+      }
       create_pharmacy_invitation: {
         Args: {
           target_pharmacy_id: string

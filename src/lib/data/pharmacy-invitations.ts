@@ -78,3 +78,38 @@ export async function cancelPharmacyInvitation(id: string): Promise<string> {
   if (!data) throw new Error("The cancellation did not return a result.");
   return data;
 }
+
+/** Recipients need a verified session, but no existing pharmacy membership. */
+export async function acceptPharmacyInvitation(id: string): Promise<string> {
+  const session = await resolveSessionUser();
+  if (!session) throw new Error("Please sign in to accept an invitation.");
+
+  const client = createServerSupabaseClient(session.accessToken);
+  const { data, error } = await client.rpc("accept_pharmacy_invitation", {
+    target_invitation_id: id,
+  });
+
+  if (error) {
+    const expectedMessages: Record<string, readonly string[]> = {
+      "42501": [
+        "Please sign in to accept an invitation.",
+        "A verified email account is required to accept an invitation.",
+        "Sign in with the email address that received this invitation.",
+      ],
+      P0001: [
+        "This invitation is unavailable or has expired.",
+        "You already have a membership in this pharmacy.",
+        "You already have an active pharmacy membership.",
+      ],
+    };
+
+    if (expectedMessages[error.code]?.includes(error.message)) {
+      throw new Error(error.message);
+    }
+
+    throw new Error("Unable to accept invitation. Please try again.");
+  }
+
+  if (!data) throw new Error("The acceptance did not return a result.");
+  return data;
+}
