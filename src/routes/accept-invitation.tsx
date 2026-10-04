@@ -96,6 +96,11 @@ function AcceptInvitationPage() {
                   Sign in
                 </Link>
               </Button>
+              <Button asChild variant="outline">
+                <Link to="/register" search={{ invitation }}>
+                  Create account
+                </Link>
+              </Button>
             </>
           ) : (
             <>

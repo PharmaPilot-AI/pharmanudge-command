@@ -14,6 +14,7 @@ import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation
 import { Route as ActionsRouteImport } from './routes/actions'
 import { Route as AskAiRouteImport } from './routes/ask-ai'
 import { Route as CloseDayRouteImport } from './routes/close-day'
+import { Route as ConfirmEmailRouteImport } from './routes/confirm-email'
 import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ExpiryRouteImport } from './routes/expiry'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -25,6 +26,7 @@ import { Route as PackagingRouteImport } from './routes/packaging'
 import { Route as PosRouteImport } from './routes/pos'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as ReceiveStockRouteImport } from './routes/receive-stock'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ServicesRouteImport } from './routes/services'
@@ -53,6 +55,11 @@ const AskAiRoute = AskAiRouteImport.update({
 const CloseDayRoute = CloseDayRouteImport.update({
   id: '/close-day',
   path: '/close-day',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfirmEmailRoute = ConfirmEmailRouteImport.update({
+  id: '/confirm-email',
+  path: '/confirm-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExpensesRoute = ExpensesRouteImport.update({
@@ -110,6 +117,11 @@ const ReceiveStockRoute = ReceiveStockRouteImport.update({
   path: '/receive-stock',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -137,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/actions': typeof ActionsRoute
   '/ask-ai': typeof AskAiRoute
   '/close-day': typeof CloseDayRoute
+  '/confirm-email': typeof ConfirmEmailRoute
   '/expenses': typeof ExpensesRoute
   '/expiry': typeof ExpiryRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -148,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/pos': typeof PosRoute
   '/products': typeof ProductsRoute
   '/receive-stock': typeof ReceiveStockRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
@@ -159,6 +173,7 @@ export interface FileRoutesByTo {
   '/actions': typeof ActionsRoute
   '/ask-ai': typeof AskAiRoute
   '/close-day': typeof CloseDayRoute
+  '/confirm-email': typeof ConfirmEmailRoute
   '/expenses': typeof ExpensesRoute
   '/expiry': typeof ExpiryRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -170,6 +185,7 @@ export interface FileRoutesByTo {
   '/pos': typeof PosRoute
   '/products': typeof ProductsRoute
   '/receive-stock': typeof ReceiveStockRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
@@ -182,6 +198,7 @@ export interface FileRoutesById {
   '/actions': typeof ActionsRoute
   '/ask-ai': typeof AskAiRoute
   '/close-day': typeof CloseDayRoute
+  '/confirm-email': typeof ConfirmEmailRoute
   '/expenses': typeof ExpensesRoute
   '/expiry': typeof ExpiryRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -193,6 +210,7 @@ export interface FileRoutesById {
   '/pos': typeof PosRoute
   '/products': typeof ProductsRoute
   '/receive-stock': typeof ReceiveStockRoute
+  '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
   '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
@@ -206,6 +224,7 @@ export interface FileRouteTypes {
     | '/actions'
     | '/ask-ai'
     | '/close-day'
+    | '/confirm-email'
     | '/expenses'
     | '/expiry'
     | '/forgot-password'
@@ -217,6 +236,7 @@ export interface FileRouteTypes {
     | '/pos'
     | '/products'
     | '/receive-stock'
+    | '/register'
     | '/reports'
     | '/reset-password'
     | '/services'
@@ -228,6 +248,7 @@ export interface FileRouteTypes {
     | '/actions'
     | '/ask-ai'
     | '/close-day'
+    | '/confirm-email'
     | '/expenses'
     | '/expiry'
     | '/forgot-password'
@@ -239,6 +260,7 @@ export interface FileRouteTypes {
     | '/pos'
     | '/products'
     | '/receive-stock'
+    | '/register'
     | '/reports'
     | '/reset-password'
     | '/services'
@@ -250,6 +272,7 @@ export interface FileRouteTypes {
     | '/actions'
     | '/ask-ai'
     | '/close-day'
+    | '/confirm-email'
     | '/expenses'
     | '/expiry'
     | '/forgot-password'
@@ -261,6 +284,7 @@ export interface FileRouteTypes {
     | '/pos'
     | '/products'
     | '/receive-stock'
+    | '/register'
     | '/reports'
     | '/reset-password'
     | '/services'
@@ -273,6 +297,7 @@ export interface RootRouteChildren {
   ActionsRoute: typeof ActionsRoute
   AskAiRoute: typeof AskAiRoute
   CloseDayRoute: typeof CloseDayRoute
+  ConfirmEmailRoute: typeof ConfirmEmailRoute
   ExpensesRoute: typeof ExpensesRoute
   ExpiryRoute: typeof ExpiryRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -284,6 +309,7 @@ export interface RootRouteChildren {
   PosRoute: typeof PosRoute
   ProductsRoute: typeof ProductsRoute
   ReceiveStockRoute: typeof ReceiveStockRoute
+  RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ServicesRoute: typeof ServicesRoute
@@ -325,6 +351,13 @@ declare module '@tanstack/react-router' {
       path: '/close-day'
       fullPath: '/close-day'
       preLoaderRoute: typeof CloseDayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confirm-email': {
+      id: '/confirm-email'
+      path: '/confirm-email'
+      fullPath: '/confirm-email'
+      preLoaderRoute: typeof ConfirmEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/expenses': {
@@ -404,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReceiveStockRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -441,6 +481,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActionsRoute: ActionsRoute,
   AskAiRoute: AskAiRoute,
   CloseDayRoute: CloseDayRoute,
+  ConfirmEmailRoute: ConfirmEmailRoute,
   ExpensesRoute: ExpensesRoute,
   ExpiryRoute: ExpiryRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -452,6 +493,7 @@ const rootRouteChildren: RootRouteChildren = {
   PosRoute: PosRoute,
   ProductsRoute: ProductsRoute,
   ReceiveStockRoute: ReceiveStockRoute,
+  RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ServicesRoute: ServicesRoute,

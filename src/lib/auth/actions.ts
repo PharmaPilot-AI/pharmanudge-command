@@ -115,3 +115,60 @@ export const logoutAction = createServerFn({ method: "POST" }).handler(async () 
 
   await clearSessionCookie();
 });
+
+// --- Staff account registration and email verification ---
+
+const staffRegistrationSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(8).max(128),
+  invitation: z.string().uuid(),
+});
+
+export const registerStaffAction = createServerFn({ method: "POST" })
+  .validator((input: unknown) => staffRegistrationSchema.parse(input))
+  .handler(async ({ data }) => {
+    const client = createRecoveryClient();
+    const confirmationUrl = new URL("/confirm-email", getSiteUrl());
+    confirmationUrl.searchParams.set("invitation", data.invitation);
+
+    const result = await client.auth
+      .signUp({
+        email: data.email,
+        password: data.password,
+        options: { emailRedirectTo: confirmationUrl.toString() },
+      })
+      .catch(() => null);
+
+    if (!result || result.error) {
+      throw new Error("Unable to create an account. Try again or sign in if you already have one.");
+    }
+
+    // Registration creates no pharmacy membership and writes no login cookie.
+  });
+
+const confirmStaffEmailSchema = z.object({
+  tokenHash: z.string().min(1).max(256),
+});
+
+export const confirmStaffEmailAction = createServerFn({ method: "POST" })
+  .validator((input: unknown) => confirmStaffEmailSchema.parse(input))
+  .handler(async ({ data }) => {
+    const client = createRecoveryClient();
+    const result = await client.auth
+      .verifyOtp({
+        token_hash: data.tokenHash,
+        type: "email",
+      })
+      .catch(() => null);
+
+    const session = result && !result.error ? result.data.session : null;
+    if (!session || !result?.data.user?.email_confirmed_at) {
+      throw new Error("This verification link is invalid or has expired.");
+    }
+
+    await writeSessionData({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + session.expires_in,
+    });
+  });
