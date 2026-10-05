@@ -146,11 +146,19 @@ function UsersPage() {
     setIsCreatingInvitation(true);
 
     try {
-      await createInvitation({
+      const result = await createInvitation({
         data: { email: invitationEmail.trim().toLowerCase(), role: invitationRole },
       });
       setInvitationEmail("");
-      toast.success("Invitation created. Copy its link and share it with the recipient.");
+
+      if (result.emailDelivery.status === "accepted") {
+        toast.success("Invitation created. Email submitted for delivery.");
+      } else {
+        toast.warning(
+          "Invitation created, but email sending could not be confirmed. Copy its link and share it with the recipient.",
+          { duration: 10000 },
+        );
+      }
 
       try {
         await router.invalidate();
@@ -311,9 +319,9 @@ function UsersPage() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Invitations expire after seven days. Copy and share the link manually; no email is
-                sent automatically. The recipient needs a verified account with this email address
-                to accept.
+                Invitations expire after seven days. We email the invitation link to the recipient.
+                You can also copy and share the link. The recipient needs a verified account with
+                this email address to accept.
               </p>
             </form>
           </CardContent>

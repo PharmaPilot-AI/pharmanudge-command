@@ -1,5 +1,9 @@
 import "@tanstack/react-start/server-only";
 import { resolveSessionUser } from "../auth/context";
+import {
+  sendPharmacyInvitationEmail,
+  type InvitationEmailResult,
+} from "../email/pharmacy-invitations";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
 import type { Database } from "../supabase/database.types";
@@ -35,7 +39,7 @@ export async function listPharmacyInvitations(): Promise<PharmacyInvitationRow[]
 export async function createPharmacyInvitation(
   email: string,
   role: PharmacyInvitationRole,
-): Promise<string> {
+): Promise<{ id: string; emailDelivery: InvitationEmailResult }> {
   const { client, pharmacyId } = await resolveOwner();
   const { data, error } = await client.rpc("create_pharmacy_invitation", {
     target_pharmacy_id: pharmacyId,
@@ -57,7 +61,14 @@ export async function createPharmacyInvitation(
   }
 
   if (!data) throw new Error("The invitation did not return a result.");
-  return data;
+
+  const emailDelivery = await sendPharmacyInvitationEmail({
+    id: data,
+    email: email.trim().toLowerCase(),
+    role,
+  });
+
+  return { id: data, emailDelivery };
 }
 
 export async function cancelPharmacyInvitation(id: string): Promise<string> {
