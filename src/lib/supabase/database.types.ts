@@ -222,6 +222,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      list_pharmacy_member_audit: {
+        Args: { target_pharmacy_id: string }
+        Returns: {
+          id: string
+          actor_user_id: string
+          actor_email: string | null
+          target_user_id: string
+          target_email: string | null
+          old_role: Database["public"]["Enums"]["pharmacy_role"]
+          new_role: Database["public"]["Enums"]["pharmacy_role"]
+          old_is_active: boolean
+          new_is_active: boolean
+          created_at: string
+        }[]
+      }
       accept_pharmacy_invitation: {
         Args: { target_invitation_id: string }
         Returns: string

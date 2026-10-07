@@ -80,3 +80,28 @@ export async function updatePharmacyMember(
 
   return updatedMember;
 }
+
+export type PharmacyMemberAuditRow =
+  Database["public"]["Functions"]["list_pharmacy_member_audit"]["Returns"][number];
+
+/** Latest access changes, scoped to the authenticated owner's pharmacy. */
+export async function listPharmacyMemberAudit(
+  client?: SupabaseClient<Database>,
+): Promise<PharmacyMemberAuditRow[]> {
+  const resolvedClient = await resolveClient(client);
+  const { pharmacyId, role } = await requirePharmacyContext(resolvedClient);
+
+  if (role !== "owner") {
+    throw new Error("Only pharmacy owners can view access history.");
+  }
+
+  const { data, error } = await resolvedClient.rpc("list_pharmacy_member_audit", {
+    target_pharmacy_id: pharmacyId,
+  });
+
+  if (error) {
+    throw new Error("Unable to load access history. Please try again.");
+  }
+
+  return data ?? [];
+}

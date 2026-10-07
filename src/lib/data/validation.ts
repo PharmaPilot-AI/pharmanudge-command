@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createProduct, updateProduct, deleteProduct } from "./products";
 import { createService, updateService, deleteService } from "./services";
 import { createPackagingUnit, updatePackagingUnit, deletePackagingUnit } from "./packaging-units";
-import { updatePharmacyMember } from "./pharmacy-members";
+import { updatePharmacyMember, listPharmacyMemberAudit } from "./pharmacy-members";
 import {
   listPharmacyInvitations,
   createPharmacyInvitation,
@@ -169,3 +169,7 @@ export const cancelPharmacyInvitationMutation = createServerFn({ method: "POST" 
 export const acceptPharmacyInvitationMutation = createServerFn({ method: "POST" })
   .validator((input: unknown) => idSchema.parse(input))
   .handler(({ data }) => acceptPharmacyInvitation(data.id));
+
+export const listPharmacyMemberAuditQuery = createServerFn({ method: "GET" }).handler(() =>
+  listPharmacyMemberAudit(),
+);

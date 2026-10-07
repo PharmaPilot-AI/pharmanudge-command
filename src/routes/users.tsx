@@ -27,6 +27,7 @@ import {
   listPharmacyInvitationsQuery,
   cancelPharmacyInvitationMutation,
   createPharmacyInvitationMutation,
+  listPharmacyMemberAuditQuery,
 } from "@/lib/data/validation";
 
 const getPharmacyMembers = createServerFn({ method: "GET" }).handler(() => listPharmacyMembers());
@@ -40,11 +41,12 @@ export const Route = createFileRoute("/users")({
     }
   },
   loader: async () => {
-    const [members, invitations] = await Promise.all([
+    const [members, invitations, accessHistory] = await Promise.all([
       getPharmacyMembers(),
       listPharmacyInvitationsQuery(),
+      listPharmacyMemberAuditQuery(),
     ]);
-    return { members, invitations };
+    return { members, invitations, accessHistory };
   },
   head: () => ({
     meta: [
@@ -84,7 +86,7 @@ function initialsFromEmail(email: string): string {
 
 /** Real, owner-only pharmacy member directory and access management. */
 function UsersPage() {
-  const { members, invitations } = Route.useLoaderData();
+  const { members, invitations, accessHistory } = Route.useLoaderData();
   const router = useRouter();
   const updateMember = useServerFn(updatePharmacyMemberMutation);
   const cancelInvitation = useServerFn(cancelPharmacyInvitationMutation);
@@ -384,6 +386,57 @@ function UsersPage() {
                     </>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </section>
+
+      <section className="flex flex-col gap-2.5" aria-labelledby="access-history-heading">
+        <h2 id="access-history-heading" className="text-lg font-semibold">
+          Access history
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Latest 50 member access changes. Times shown in Lagos time.
+        </p>
+        {accessHistory.length === 0 ? (
+          <p className="rounded-xl border p-3.5 text-sm text-muted-foreground">
+            No member access changes recorded yet.
+          </p>
+        ) : (
+          accessHistory.map((entry) => (
+            <Card key={entry.id}>
+              <CardContent className="flex flex-col gap-2 p-3.5">
+                <p className="break-all text-sm font-semibold">
+                  {entry.target_email ?? `User ${entry.target_user_id}`}
+                </p>
+                <div className="flex flex-col gap-1 text-sm">
+                  {entry.old_role !== entry.new_role && (
+                    <p>
+                      Role: {roleLabels[entry.old_role]} → {roleLabels[entry.new_role]}
+                    </p>
+                  )}
+                  {entry.old_is_active !== entry.new_is_active && (
+                    <p>
+                      Access: {entry.old_is_active ? "Active" : "Inactive"} →{" "}
+                      {entry.new_is_active ? "Active" : "Inactive"}
+                    </p>
+                  )}
+                </div>
+                <p className="break-all text-xs text-muted-foreground">
+                  Changed by {entry.actor_email ?? `User ${entry.actor_user_id}`}
+                </p>
+                <time dateTime={entry.created_at} className="text-xs text-muted-foreground">
+                  {new Intl.DateTimeFormat("en-GB", {
+                    timeZone: "Africa/Lagos",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  }).format(new Date(entry.created_at))}
+                </time>
               </CardContent>
             </Card>
           ))
