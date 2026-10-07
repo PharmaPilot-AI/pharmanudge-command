@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { confirmStockReceipt } from "./stock-receipts";
+import { stockReceiptSchema } from "./stock-receipt-schema";
 import { createProduct, updateProduct, deleteProduct } from "./products";
 import { createService, updateService, deleteService } from "./services";
 import { createPackagingUnit, updatePackagingUnit, deletePackagingUnit } from "./packaging-units";
@@ -173,3 +175,9 @@ export const acceptPharmacyInvitationMutation = createServerFn({ method: "POST" 
 export const listPharmacyMemberAuditQuery = createServerFn({ method: "GET" }).handler(() =>
   listPharmacyMemberAudit(),
 );
+
+// --- Stock receipts ---
+
+export const confirmStockReceiptMutation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => stockReceiptSchema.parse(input))
+  .handler(({ data }) => confirmStockReceipt(data));

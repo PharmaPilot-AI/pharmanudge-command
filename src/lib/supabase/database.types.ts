@@ -222,6 +222,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_stock_receipt: {
+        Args: {
+          target_pharmacy_id: string
+          operation_id: string
+          receipt_supplier: string
+          receipt_invoice: string
+          receipt_items: Json
+        }
+        Returns: string
+      }
       list_pharmacy_member_audit: {
         Args: { target_pharmacy_id: string }
         Returns: {
