@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { FormEvent, useMemo, useState } from "react";
-import { PackageCheck, Truck } from "lucide-react";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useRef, useState, type FormEvent } from "react";
+import { PackageCheck } from "lucide-react";
 import { toast } from "sonner";
-import { EmptyState } from "@/components/feedback/EmptyState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,243 +15,425 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatNaira, toBaseUnits } from "@/lib/money";
-import { products, suppliers } from "@/lib/mock-data";
+import { confirmStockReceiptMutation, stockReceiptCatalogueQuery } from "@/lib/data/validation";
+import { stockReceiptSchema, type StockReceiptInput } from "@/lib/data/stock-receipt-schema";
 
 export const Route = createFileRoute("/receive-stock")({
+  beforeLoad: ({ context }) => {
+    const role = context.pharmacyContext?.role;
+    if (role !== "owner" && role !== "pharmacist") {
+      throw redirect({ to: role === "accountant" ? "/reports" : "/pos" });
+    }
+  },
+  loader: () => stockReceiptCatalogueQuery(),
   head: () => ({
     meta: [
       { title: "Receive Stock — PharmaNudge" },
-      { name: "description", content: "Record supplier deliveries with batch and expiry. Review base-unit equivalents before confirming." },
-      { property: "og:title", content: "Receive Stock — PharmaNudge" },
-      { property: "og:description", content: "Record supplier deliveries with batch and expiry tracking." },
-      { property: "og:type", content: "website" },
+      {
+        name: "description",
+        content: "Record supplier deliveries with batch and expiry tracking.",
+      },
     ],
   }),
   component: ReceiveStock,
 });
 
-interface ReceiptEntry {
-  id: number;
-  productId: string;
-  unitId: string;
-  quantity: number;
-  costPerUnit: number;
-  batchNumber: string;
-  expiryDate: string;
-  supplier: string;
+type ReceiptItem = StockReceiptInput["items"][number];
+
+interface ReviewEntry {
+  key: string;
+  item: ReceiptItem;
+  productName: string;
+  unitLabel: string;
+  baseUnitLabel: string;
+  conversionFactor: number;
 }
 
-let entrySeq = 0;
+function receiptMoney(value: number): string {
+  const [whole, fraction] = value.toFixed(2).split(".");
+  return `₦${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
+}
 
-/**
- * Receive Stock. Entry → review (with base-unit equivalents) → confirm.
- * Confirm updates local mock state only; no backend writes in Phase 1.
- */
+function lagosToday(): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Lagos",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((entry) => entry.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 function ReceiveStock() {
-  const [supplier, setSupplier] = useState(suppliers[0]!);
-  const [productId, setProductId] = useState(products[0]!.id);
-  const [unitId, setUnitId] = useState(products[0]!.units[0]!.id);
+  const { products, units } = Route.useLoaderData();
+  const router = useRouter();
+  const saveReceipt = useServerFn(confirmStockReceiptMutation);
+  const inFlight = useRef(false);
+  const operationId = useRef<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [supplier, setSupplier] = useState("");
+  const [invoice, setInvoice] = useState("");
+  const [productId, setProductId] = useState(products[0]?.id ?? "");
+  const [unitId, setUnitId] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [costPerUnit, setCostPerUnit] = useState("");
-  const [batchNumber, setBatchNumber] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
-  const [review, setReview] = useState<ReceiptEntry[]>([]);
-  const [received, setReceived] = useState<ReceiptEntry[]>([]);
+  const [cost, setCost] = useState("");
+  const [batch, setBatch] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [review, setReview] = useState<ReviewEntry[]>([]);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const product = useMemo(() => products.find((p) => p.id === productId)!, [productId]);
-  const unit = useMemo(
-    () => product.units.find((u) => u.id === unitId) ?? product.units[0]!,
-    [product, unitId],
-  );
+  const product = products.find((entry) => entry.id === productId);
+  const productUnits = units.filter((entry) => entry.product_id === productId);
+  const unit = productUnits.find((entry) => entry.id === unitId) ?? productUnits[0];
 
-  const changeProduct = (id: string) => {
-    setProductId(id);
-    setUnitId(products.find((p) => p.id === id)!.units[0]!.id);
-  };
-
-  const addEntry = (e: FormEvent) => {
-    e.preventDefault();
-    const qty = Number.parseInt(quantity, 10);
-    const cost = Number.parseFloat(costPerUnit);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      toast.error("Enter a valid quantity");
+  const addEntry = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (inFlight.current) return;
+    if (!product || !unit) {
+      toast.error("Choose a product with an active packaging unit.");
       return;
     }
-    if (!Number.isFinite(cost) || cost < 0) {
-      toast.error("Enter a valid cost per unit");
+    if (review.length >= 100) {
+      toast.error("A delivery can contain at most 100 entries.");
       return;
     }
-    if (!batchNumber.trim()) {
-      toast.error("Enter a batch number");
-      return;
-    }
-    if (!expiryDate) {
-      toast.error("Enter an expiry date");
+    const decimal = /^\d+(?:\.\d{1,6})?$/;
+    if (!decimal.test(quantity) || !decimal.test(cost)) {
+      toast.error("Enter quantity and purchase cost with up to six decimal places.");
       return;
     }
 
-    setReview((prev) => [
-      ...prev,
+    const parsed = stockReceiptSchema.shape.items.element.safeParse({
+      product_id: product.id,
+      packaging_unit_id: unit.id,
+      quantity: Number(quantity),
+      cost_per_packaging_unit: Number(cost),
+      batch_number: batch,
+      expiry_date: expiry,
+    });
+    if (!parsed.success) {
+      toast.error("Check the quantity, purchase cost, batch number and expiry date.");
+      return;
+    }
+    if (parsed.data.expiry_date <= lagosToday()) {
+      toast.error("Stock expiry must be after today.");
+      return;
+    }
+    const baseQuantity = parsed.data.quantity * unit.base_units_per_unit;
+    if (
+      baseQuantity >= 1000000000000 ||
+      parsed.data.quantity * parsed.data.cost_per_packaging_unit >= 10000000000000000
+    ) {
+      toast.error("The receipt quantity or value is too large.");
+      return;
+    }
+
+    setReview((current) => [
+      ...current,
       {
-        id: ++entrySeq,
-        productId,
-        unitId: unit.id,
-        quantity: qty,
-        costPerUnit: cost,
-        batchNumber: batchNumber.trim(),
-        expiryDate,
-        supplier,
+        key: crypto.randomUUID(),
+        item: parsed.data,
+        productName: product.name,
+        unitLabel: unit.label,
+        baseUnitLabel: product.base_unit_label,
+        conversionFactor: unit.base_units_per_unit,
       },
     ]);
     setQuantity("");
-    setCostPerUnit("");
-    setBatchNumber("");
-    setExpiryDate("");
+    setCost("");
+    setBatch("");
+    setExpiry("");
+    setError(null);
   };
 
-  const confirmReceipt = () => {
-    setReceived((prev) => [...review, ...prev]);
-    setReview([]);
-    toast.success("Stock receipt recorded locally (Phase 1 mock — nothing was saved)");
-  };
+  const confirmReceipt = async () => {
+    if (inFlight.current || review.length === 0) return;
+    operationId.current ??= crypto.randomUUID();
 
-  const describe = (entry: ReceiptEntry) => {
-    const p = products.find((x) => x.id === entry.productId)!;
-    const u = p.units.find((x) => x.id === entry.unitId)!;
-    const base = toBaseUnits(entry.quantity, u);
-    return { p, u, base };
+    const parsed = stockReceiptSchema.safeParse({
+      operation_id: operationId.current,
+      supplier_name: supplier,
+      invoice_reference: invoice,
+      items: review.map((entry) => entry.item),
+    });
+    if (!parsed.success) {
+      toast.error("Enter a supplier name and check the delivery details.");
+      return;
+    }
+
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+
+    try {
+      const id = await saveReceipt({ data: parsed.data });
+      setSavedId(id);
+      setReview([]);
+      setSupplier("");
+      setInvoice("");
+      operationId.current = null;
+      toast.success("Stock receipt saved.");
+
+      try {
+        await router.invalidate();
+      } catch {
+        toast.warning("Receipt saved. The catalogue could not be refreshed.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to confirm stock receipt.");
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
   };
 
   return (
     <div className="flex max-w-4xl flex-col gap-5">
       <PageHeader
         title="Receive Stock"
-        description="Record a supplier delivery with batch and expiry. Everything converts to base units."
+        description="Enter a delivery, review quantities and purchase costs, then save the receipt."
       />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Truck className="h-4 w-4 text-primary" aria-hidden />
-            New delivery entry
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={addEntry} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-supplier">Supplier</Label>
-              <Select value={supplier} onValueChange={setSupplier}>
-                <SelectTrigger id="rs-supplier" className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-product">Product</Label>
-              <Select value={productId} onValueChange={changeProduct}>
-                <SelectTrigger id="rs-product" className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-unit">Unit received</Label>
-              <Select value={unit.id} onValueChange={setUnitId}>
-                <SelectTrigger id="rs-unit" className="h-11"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {product.units.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.label}{u.baseUnitsPerUnit > 1 ? ` (= ${u.baseUnitsPerUnit} ${product.baseUnitLabel}s)` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-qty">Quantity ({unit.label})</Label>
-              <Input id="rs-qty" type="number" min={1} inputMode="numeric" placeholder="e.g. 5" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-11 tabular-nums" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-cost">Cost per {unit.label.toLowerCase()} (₦)</Label>
-              <Input id="rs-cost" type="number" min={0} inputMode="decimal" placeholder="e.g. 21000" value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} className="h-11 tabular-nums" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-batch">Batch number</Label>
-              <Input id="rs-batch" placeholder="e.g. PX-9102" value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} className="h-11" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="rs-expiry">Expiry date</Label>
-              <Input id="rs-expiry" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="h-11" />
-            </div>
-            <div className="flex items-end sm:col-span-2 lg:col-span-3">
-              <Button type="submit" className="h-11 w-full sm:w-auto">Add to delivery</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      {savedId && (
+        <div
+          role="status"
+          className="rounded-xl border border-success/30 bg-success/5 p-3.5 text-sm"
+        >
+          <p className="flex items-center gap-2 font-semibold">
+            <PackageCheck className="h-4 w-4" aria-hidden />
+            Stock receipt saved to your pharmacy.
+          </p>
+          <p className="mt-1 break-all text-xs text-muted-foreground">
+            Receipt reference: {savedId}
+          </p>
+        </div>
+      )}
 
-      {/* Review */}
-      <section aria-label="Review delivery">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Review before confirming
-        </h2>
-        {review.length === 0 ? (
-          <EmptyState icon={PackageCheck} title="Nothing to review" description="Add delivery entries above — base-unit equivalents appear here before you confirm." />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {review.map((entry) => {
-              const { p, u, base } = describe(entry);
-              return (
-                <div key={entry.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border bg-card p-3.5 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Batch {entry.batchNumber} · expires {entry.expiryDate} · {entry.supplier}
+      {products.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col gap-3 p-4">
+            <p>Add a product and its packaging units before receiving stock.</p>
+            <Button asChild className="self-start">
+              <Link to="/products">Manage products</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Delivery details</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="rs-supplier">Supplier name</Label>
+                <Input
+                  id="rs-supplier"
+                  value={supplier}
+                  maxLength={200}
+                  disabled={busy}
+                  onChange={(event) => setSupplier(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="rs-invoice">Invoice reference (optional)</Label>
+                <Input
+                  id="rs-invoice"
+                  value={invoice}
+                  maxLength={100}
+                  disabled={busy}
+                  onChange={(event) => setInvoice(event.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Add delivery item</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={addEntry} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rs-product">Product</Label>
+                  <Select
+                    value={productId}
+                    disabled={busy}
+                    onValueChange={(id) => {
+                      setProductId(id);
+                      setUnitId("");
+                    }}
+                  >
+                    <SelectTrigger id="rs-product">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((entry) => (
+                        <SelectItem key={entry.id} value={entry.id}>
+                          {entry.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rs-unit">Unit received</Label>
+                  <Select
+                    value={unit?.id ?? ""}
+                    onValueChange={setUnitId}
+                    disabled={busy || productUnits.length === 0}
+                  >
+                    <SelectTrigger id="rs-unit">
+                      <SelectValue placeholder="Choose a unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productUnits.map((entry) => (
+                        <SelectItem key={entry.id} value={entry.id}>
+                          {entry.label} (= {entry.base_units_per_unit} {product?.base_unit_label})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {productUnits.length === 0 && (
+                    <Link to="/packaging" className="text-sm text-primary underline">
+                      Add packaging units for this product
+                    </Link>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rs-quantity">Quantity received</Label>
+                  <Input
+                    id="rs-quantity"
+                    type="number"
+                    min="0.000001"
+                    step="0.000001"
+                    required
+                    disabled={busy}
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rs-cost">Purchase cost per {unit?.label ?? "unit"} (₦)</Label>
+                  <Input
+                    id="rs-cost"
+                    type="number"
+                    min="0"
+                    step="0.000001"
+                    required
+                    disabled={busy}
+                    value={cost}
+                    onChange={(event) => setCost(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rs-batch">Batch number</Label>
+                  <Input
+                    id="rs-batch"
+                    required
+                    maxLength={100}
+                    disabled={busy}
+                    value={batch}
+                    onChange={(event) => setBatch(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="rs-expiry">Expiry date</Label>
+                  <Input
+                    id="rs-expiry"
+                    type="date"
+                    required
+                    disabled={busy}
+                    value={expiry}
+                    onChange={(event) => setExpiry(event.target.value)}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="self-end"
+                  disabled={busy || !unit || review.length >= 100}
+                >
+                  Add to delivery
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <section className="flex flex-col gap-3" aria-labelledby="receipt-review">
+            <h2 id="receipt-review" className="text-lg font-semibold">
+              Review before confirming
+            </h2>
+            {review.length === 0 ? (
+              <p className="rounded-xl border p-3.5 text-sm text-muted-foreground">
+                Add delivery items above to review their quantities and purchase costs.
+              </p>
+            ) : (
+              <>
+                {review.map((entry) => (
+                  <Card key={entry.key}>
+                    <CardContent className="flex flex-col gap-2 p-3.5 sm:flex-row sm:items-center">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">{entry.productName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Batch {entry.item.batch_number} · Expires {entry.item.expiry_date}
+                        </p>
+                        <p className="text-sm">
+                          {entry.item.quantity} × {entry.unitLabel} ={" "}
+                          {Number((entry.item.quantity * entry.conversionFactor).toFixed(6))}{" "}
+                          {entry.baseUnitLabel}
+                        </p>
+                        <p className="text-sm tabular-nums">
+                          Purchase total:{" "}
+                          {receiptMoney(entry.item.quantity * entry.item.cost_per_packaging_unit)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        aria-label={`Remove ${entry.productName} batch ${entry.item.batch_number}`}
+                        onClick={() =>
+                          setReview((current) => current.filter((item) => item.key !== entry.key))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  Quantities use the packaging conversions shown above. Purchase totals are
+                  previews; the saved receipt uses the current catalogue conversion and database
+                  rounding.
+                </p>
+                {error && (
+                  <div role="alert" className="rounded-xl border p-3.5 text-sm text-destructive">
+                    <p>{error}</p>
+                    <p className="mt-1">
+                      If the connection failed, retry with the same delivery details before
+                      refreshing this page.
                     </p>
                   </div>
-                  <p className="tabular-nums text-muted-foreground">
-                    {entry.quantity} × {u.label} = <span className="font-semibold text-foreground">{base.toLocaleString("en-US")} {p.baseUnitLabel}s</span>
-                  </p>
-                  <p className="font-semibold tabular-nums">{formatNaira(entry.costPerUnit * entry.quantity)}</p>
-                </div>
-              );
-            })}
-            <Button onClick={confirmReceipt} className="mt-1 h-11 self-start">
-              Confirm receipt ({review.length} item{review.length === 1 ? "" : "s"})
-            </Button>
-          </div>
-        )}
-      </section>
-
-      {/* Received today */}
-      {received.length > 0 && (
-        <section aria-label="Received today">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Received today (local mock)
-          </h2>
-          <div className="flex flex-col gap-2">
-            {received.map((entry) => {
-              const { p, u, base } = describe(entry);
-              return (
-                <div key={entry.id} className="flex items-center gap-3 rounded-xl border border-success/30 bg-success/5 p-3 text-sm">
-                  <PackageCheck className="h-4 w-4 shrink-0 text-success" aria-hidden />
-                  <p className="min-w-0 flex-1 truncate">
-                    <span className="font-semibold">{p.name}</span>
-                    <span className="text-muted-foreground"> · {entry.quantity} × {u.label} · Batch {entry.batchNumber}</span>
-                  </p>
-                  <span className="shrink-0 tabular-nums text-success">+{base.toLocaleString("en-US")} {p.baseUnitLabel}s</span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                )}
+                <Button
+                  type="button"
+                  className="self-start"
+                  disabled={busy}
+                  onClick={() => void confirmReceipt()}
+                >
+                  {busy
+                    ? "Saving receipt…"
+                    : `Confirm receipt (${review.length} ${review.length === 1 ? "item" : "items"})`}
+                </Button>
+              </>
+            )}
+          </section>
+        </>
       )}
     </div>
   );

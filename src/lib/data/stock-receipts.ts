@@ -1,5 +1,6 @@
 import "@tanstack/react-start/server-only";
 import { resolveSessionUser } from "../auth/context";
+import { listProducts } from "./products";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
 import { stockReceiptSchema, type StockReceiptInput } from "./stock-receipt-schema";
@@ -50,4 +51,40 @@ export async function confirmStockReceipt(input: StockReceiptInput): Promise<str
 
   if (!data) throw new Error("The receipt confirmation did not return a result.");
   return data;
+}
+
+/** Real catalogue for authorized stock-receiving staff. */
+export async function getStockReceiptCatalogue() {
+  const session = await resolveSessionUser();
+  if (!session) throw new Error("Please sign in to receive stock.");
+
+  const client = createServerSupabaseClient(session.accessToken);
+  const context = await requirePharmacyContext(client);
+  if (context.role !== "owner" && context.role !== "pharmacist") {
+    throw new Error("Only an active owner or pharmacist can receive stock.");
+  }
+
+  const [products, unitsResult] = await Promise.all([
+    listProducts(client),
+    client
+      .from("packaging_units")
+      .select("id, product_id, label, base_units_per_unit, products!inner(pharmacy_id, is_active)")
+      .eq("is_active", true)
+      .eq("products.pharmacy_id", context.pharmacyId)
+      .eq("products.is_active", true)
+      .order("label"),
+  ]);
+
+  if (unitsResult.error) {
+    throw new Error("Unable to load packaging units. Please try again.");
+  }
+
+  const units = (unitsResult.data ?? []).map((unit) => ({
+    id: unit.id,
+    product_id: unit.product_id,
+    label: unit.label,
+    base_units_per_unit: unit.base_units_per_unit,
+  }));
+
+  return { products, units };
 }
