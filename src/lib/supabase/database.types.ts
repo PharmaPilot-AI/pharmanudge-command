@@ -222,6 +222,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      list_pharmacy_inventory: {
+        Args: { target_pharmacy_id: string }
+        Returns: {
+          product_id: string
+          product_name: string
+          generic_name: string
+          category: string
+          shelf_location: string
+          base_unit_label: string
+          is_active: boolean
+          on_hand_quantity: string
+          available_quantity: string
+          expired_quantity: string
+          expiring_quantity: string
+          stock_value: string | null
+          expiring_value: string | null
+          batch_count: number
+          nearest_expiry: string | null
+          as_of_date: string
+        }[]
+      }
       confirm_stock_receipt: {
         Args: {
           target_pharmacy_id: string

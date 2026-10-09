@@ -1,16 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { ClipboardList, PencilLine } from "lucide-react";
-import { toast } from "sonner";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -20,320 +12,194 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { batches, products } from "@/lib/mock-data";
+import { pharmacyInventoryQuery } from "@/lib/data/validation";
 import {
-  baseStockLabel,
-  formatNaira,
-  formatNairaSigned,
-  productStockStatus,
-  stockStatusLabel,
-} from "@/lib/money";
-import type { Product } from "@/lib/types";
-import { cn } from "@/lib/utils";
+  formatInventoryQuantity,
+  formatInventoryMoney,
+  formatInventoryDate,
+  hasInventoryQuantity,
+} from "@/lib/inventory-format";
 
 export const Route = createFileRoute("/inventory-ops")({
+  loader: () => pharmacyInventoryQuery(),
   head: () => ({
     meta: [
       { title: "Inventory Operations — PharmaNudge" },
-      { name: "description", content: "Detailed stock table with batches, shelf locations, counts and adjustments." },
-      { property: "og:title", content: "Inventory Operations — PharmaNudge" },
-      { property: "og:description", content: "Detailed stock table with batches, shelf locations, counts and adjustments." },
-      { property: "og:type", content: "website" },
+      {
+        name: "description",
+        content: "Current pharmacy stock quantities, shelves, batches and expiry dates.",
+      },
     ],
   }),
   component: InventoryOps,
 });
 
-const adjustmentReasons = ["Cycle count correction", "Damaged stock", "Theft / loss", "Supplier return"];
-
-const statusBadgeClasses: Record<string, string> = {
-  out: "bg-destructive/10 text-destructive",
-  low: "bg-warning/10 text-warning",
-  ok: "bg-success/10 text-success",
-};
-
-/**
- * Operational inventory: detailed table, batches, shelf locations and local
- * stock adjustments. Adjustments will become immutable ledger events in
- * Phase 2 — here they only update local mock state.
- */
 function InventoryOps() {
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
-  const [adjustingId, setAdjustingId] = useState<string | null>(null);
-
-  const rows = useMemo(
-    () =>
-      products.map((p) => ({
-        product: p,
-        effectiveStock: p.baseUnitsInStock + (overrides[p.id] ?? 0),
-        productBatches: batches.filter((b) => b.productId === p.id),
-      })),
-    [overrides],
+  const inventory = Route.useLoaderData();
+  const { pharmacyContext } = Route.useRouteContext();
+  const [search, setSearch] = useState("");
+  const role = pharmacyContext?.role;
+  const canReceive = role === "owner" || role === "pharmacist";
+  const canViewValues = role === "owner" || role === "accountant";
+  const query = search.trim().toLowerCase();
+  const rows = inventory.filter((row) =>
+    [row.product_name, row.generic_name, row.category, row.shelf_location].some((value) =>
+      value.toLowerCase().includes(query),
+    ),
   );
-
-  const reorderCount = rows.filter(
-    (r) => r.effectiveStock <= r.product.reorderLevelBaseUnits,
-  ).length;
+  const asOfDate = inventory[0]?.as_of_date;
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Inventory"
-        description="Stock counts, batches, shelf locations and adjustments."
+        description="Available stock, expiry quantities and shelf locations."
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              toast.success(`Reorder list drafted for ${reorderCount} item${reorderCount === 1 ? "" : "s"} (Phase 1 mock)`)
-            }
-          >
-            <ClipboardList className="h-4 w-4" aria-hidden />
-            Draft reorder list ({reorderCount})
-          </Button>
+          canReceive ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/receive-stock">Receive stock</Link>
+            </Button>
+          ) : undefined
         }
       />
 
-      {/* Desktop table */}
-      <div className="hidden rounded-xl border bg-card md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Shelf</TableHead>
-              <TableHead className="text-right">Stock (base units)</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Batches · nearest expiry</TableHead>
-              <TableHead className="text-right">Stock value</TableHead>
-              <TableHead className="text-right">Adjust</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <InventoryRow
-                key={row.product.id}
-                row={row}
-                delta={overrides[row.product.id] ?? 0}
-                adjusting={adjustingId === row.product.id}
-                onToggleAdjust={() =>
-                  setAdjustingId((prev) => (prev === row.product.id ? null : row.product.id))
-                }
-                onApply={(delta, reason) => {
-                  setOverrides((prev) => ({
-                    ...prev,
-                    [row.product.id]: (prev[row.product.id] ?? 0) + delta,
-                  }));
-                  setAdjustingId(null);
-                  toast.success(
-                    `Adjustment recorded locally: ${formatNairaSigned(delta * row.product.costPerBaseUnit)} · ${reason}`,
-                  );
-                }}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <Input
+        type="search"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search product, generic name, category or shelf"
+        aria-label="Search inventory"
+        className="max-w-lg"
+      />
+      <p className="text-xs text-muted-foreground">
+        Showing {rows.length} of {inventory.length} products.
+      </p>
 
-      {/* Mobile cards */}
-      <div className="flex flex-col gap-2.5 md:hidden">
-        {rows.map((row) => {
-          const status = productStockStatus({
-            ...row.product,
-            baseUnitsInStock: row.effectiveStock,
-          });
-          const nearest = nearestExpiryDays(row.product.id);
-          return (
-            <div key={row.product.id} className="rounded-xl border bg-card p-3.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{row.product.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {row.product.shelfLocation} · {row.productBatches.length} batch
-                    {row.productBatches.length === 1 ? "" : "es"}
-                    {nearest !== null ? ` · nearest expiry ${nearest}d` : ""}
-                  </p>
-                </div>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold", statusBadgeClasses[status])}>
-                  {stockStatusLabel(status)}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="tabular-nums text-muted-foreground">
-                  {row.effectiveStock.toLocaleString("en-US")} {row.product.baseUnitLabel}s
-                  {(overrides[row.product.id] ?? 0) !== 0 && (
-                    <span className="ml-1 font-medium text-info">
-                      ({formatNairaSigned((overrides[row.product.id] ?? 0) * row.product.costPerBaseUnit)} adj.)
-                    </span>
+      {rows.length === 0 ? (
+        <p className="rounded-xl border p-4 text-sm text-muted-foreground">
+          {inventory.length === 0
+            ? "No products in this pharmacy yet."
+            : "No products match your search."}
+        </p>
+      ) : (
+        <>
+          <div className="hidden overflow-x-auto rounded-xl border bg-card md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Shelf</TableHead>
+                  <TableHead className="text-right">On hand</TableHead>
+                  <TableHead className="text-right">Available</TableHead>
+                  <TableHead className="text-right">Expired</TableHead>
+                  <TableHead className="text-right">Expiring ≤ 30 days</TableHead>
+                  <TableHead>Batches · nearest expiry</TableHead>
+                  {canViewValues && <TableHead className="text-right">Purchase value</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.product_id}>
+                    <TableCell>
+                      <p className="font-medium">{row.product_name}</p>
+                      <p className="text-xs text-muted-foreground">{row.generic_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Base unit: {row.base_unit_label}
+                      </p>
+                      {!row.is_active && <Badge variant="outline">Inactive product</Badge>}
+                      {row.is_active && !hasInventoryQuantity(row.available_quantity) && (
+                        <Badge variant="outline">Out of stock</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{row.shelf_location || "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatInventoryQuantity(row.on_hand_quantity)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatInventoryQuantity(row.available_quantity)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatInventoryQuantity(row.expired_quantity)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatInventoryQuantity(row.expiring_quantity)}
+                    </TableCell>
+                    <TableCell>
+                      {row.batch_count} · {formatInventoryDate(row.nearest_expiry)}
+                    </TableCell>
+                    {canViewValues && (
+                      <TableCell className="text-right tabular-nums">
+                        {formatInventoryMoney(row.stock_value)}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-col gap-2.5 md:hidden">
+            {rows.map((row) => (
+              <div key={row.product_id} className="rounded-xl border bg-card p-3.5">
+                <p className="break-words text-sm font-semibold">{row.product_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {row.generic_name} · Shelf: {row.shelf_location || "Not assigned"}
+                </p>
+                {!row.is_active && <Badge variant="outline">Inactive product</Badge>}
+                {row.is_active && !hasInventoryQuantity(row.available_quantity) && (
+                  <Badge variant="outline">Out of stock</Badge>
+                )}
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <dt className="text-xs text-muted-foreground">On hand</dt>
+                    <dd>
+                      {formatInventoryQuantity(row.on_hand_quantity)} {row.base_unit_label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Available</dt>
+                    <dd>
+                      {formatInventoryQuantity(row.available_quantity)} {row.base_unit_label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Expired</dt>
+                    <dd>
+                      {formatInventoryQuantity(row.expired_quantity)} {row.base_unit_label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Expiring ≤ 30 days</dt>
+                    <dd>
+                      {formatInventoryQuantity(row.expiring_quantity)} {row.base_unit_label}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Batches</dt>
+                    <dd>{row.batch_count}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Nearest expiry</dt>
+                    <dd>{formatInventoryDate(row.nearest_expiry)}</dd>
+                  </div>
+                  {canViewValues && (
+                    <div>
+                      <dt className="text-xs text-muted-foreground">Purchase value</dt>
+                      <dd>{formatInventoryMoney(row.stock_value)}</dd>
+                    </div>
                   )}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1"
-                  onClick={() =>
-                    setAdjustingId((prev) => (prev === row.product.id ? null : row.product.id))
-                  }
-                >
-                  <PencilLine className="h-3.5 w-3.5" aria-hidden />
-                  Adjust
-                </Button>
+                </dl>
               </div>
-              {adjustingId === row.product.id && (
-                <AdjustPanel
-                  product={row.product}
-                  onApply={(delta, reason) => {
-                    setOverrides((prev) => ({
-                      ...prev,
-                      [row.product.id]: (prev[row.product.id] ?? 0) + delta,
-                    }));
-                    setAdjustingId(null);
-                    toast.success("Adjustment recorded locally (Phase 1 mock)");
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <p className="text-xs text-muted-foreground">
-        Stock is tracked in base units. In Phase 2 every adjustment becomes an immutable ledger
-        event with a reason and an author — nothing is silently overwritten.
+        Quantities are shown in base units. Available stock excludes stock expiring today or
+        earlier. Nearest expiry includes expired batches that still hold stock.
+        {asOfDate ? ` Expiry assessed as of ${formatInventoryDate(asOfDate)} in Lagos.` : ""}
       </p>
     </div>
-  );
-}
-
-function nearestExpiryDays(productId: string): number | null {
-  const list = batches.filter((b) => b.productId === productId);
-  if (list.length === 0) return null;
-  return Math.min(...list.map((b) => b.daysToExpiry));
-}
-
-interface RowData {
-  product: Product;
-  effectiveStock: number;
-  productBatches: typeof batches;
-}
-
-function InventoryRow({
-  row,
-  delta,
-  adjusting,
-  onToggleAdjust,
-  onApply,
-}: {
-  row: RowData;
-  delta: number;
-  adjusting: boolean;
-  onToggleAdjust: () => void;
-  onApply: (delta: number, reason: string) => void;
-}) {
-  const status = productStockStatus({ ...row.product, baseUnitsInStock: row.effectiveStock });
-  const nearest = nearestExpiryDays(row.product.id);
-
-  return (
-    <>
-      <TableRow>
-        <TableCell>
-          <p className="font-medium">{row.product.name}</p>
-          <p className="text-xs text-muted-foreground">{row.product.genericName}</p>
-        </TableCell>
-        <TableCell className="text-muted-foreground">{row.product.shelfLocation}</TableCell>
-        <TableCell className="text-right tabular-nums">
-          {row.effectiveStock.toLocaleString("en-US")} {row.product.baseUnitLabel}s
-          {delta !== 0 && (
-            <span className="block text-xs font-medium text-info">{formatNairaSigned(delta)} units adj.</span>
-          )}
-        </TableCell>
-        <TableCell>
-          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", statusBadgeClasses[status])}>
-            {stockStatusLabel(status)}
-          </span>
-        </TableCell>
-        <TableCell className="text-muted-foreground">
-          {row.productBatches.length}
-          {nearest !== null ? ` · ${nearest} days` : ""}
-        </TableCell>
-        <TableCell className="text-right tabular-nums">
-          {formatNaira(row.effectiveStock * row.product.costPerBaseUnit)}
-        </TableCell>
-        <TableCell className="text-right">
-          <Button variant="outline" size="sm" className="h-8 gap-1" onClick={onToggleAdjust}>
-            <PencilLine className="h-3.5 w-3.5" aria-hidden />
-            Adjust
-          </Button>
-        </TableCell>
-      </TableRow>
-      {adjusting && (
-        <TableRow>
-          <TableCell colSpan={7} className="bg-muted/50">
-            <AdjustPanel product={row.product} onApply={onApply} />
-          </TableCell>
-        </TableRow>
-      )}
-    </>
-  );
-}
-
-function AdjustPanel({
-  product,
-  onApply,
-}: {
-  product: Product;
-  onApply: (delta: number, reason: string) => void;
-}) {
-  const [deltaText, setDeltaText] = useState("");
-  const [reason, setReason] = useState(adjustmentReasons[0]!);
-  const delta = Number.parseInt(deltaText, 10);
-
-  return (
-    <form
-      className="flex flex-wrap items-end gap-2 py-1"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!Number.isFinite(delta) || delta === 0) {
-          toast.error("Enter a non-zero adjustment in base units");
-          return;
-        }
-        onApply(delta, reason);
-      }}
-    >
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`delta-${product.id}`} className="text-xs font-medium text-muted-foreground">
-          Adjustment ({product.baseUnitLabel}s, +/−)
-        </label>
-        <Input
-          id={`delta-${product.id}`}
-          type="number"
-          inputMode="numeric"
-          placeholder="e.g. -20"
-          value={deltaText}
-          onChange={(e) => setDeltaText(e.target.value)}
-          className="h-9 w-36 tabular-nums"
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-muted-foreground">Reason</span>
-        <Select value={reason} onValueChange={setReason}>
-          <SelectTrigger className="h-9 w-48 text-sm" aria-label="Adjustment reason">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {adjustmentReasons.map((r) => (
-              <SelectItem key={r} value={r} className="text-sm">
-                {r}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <Button type="submit" size="sm" className="h-9">
-        Apply
-      </Button>
-      <p className="w-full text-xs text-muted-foreground">
-        Current: {baseStockLabel(product)} — adjustments are entered in base units.
-      </p>
-    </form>
   );
 }

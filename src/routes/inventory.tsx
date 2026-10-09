@@ -1,46 +1,55 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Boxes, CalendarClock, PackageX, TriangleAlert, Wallet } from "lucide-react";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { CalendarClock, PackageX, TriangleAlert, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ActionCard } from "@/components/actions/ActionCard";
 import { KpiCard } from "@/components/kpi/KpiCard";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { pharmacyInventoryQuery } from "@/lib/data/validation";
+import type { PharmacyInventoryRow } from "@/lib/data/inventory";
 import {
-  expiringBatches,
-  expiryValueAtRisk,
-  initialActions,
-  lowStockProducts,
-  outOfStockProducts,
-  productById,
-  products,
-} from "@/lib/mock-data";
-import { baseStockLabel, expiryTone, formatNaira } from "@/lib/money";
+  formatInventoryMoney,
+  formatInventoryQuantity,
+  formatInventoryDate,
+  hasInventoryQuantity,
+  sumInventoryValues,
+} from "@/lib/inventory-format";
 
 export const Route = createFileRoute("/inventory")({
+  beforeLoad: ({ context }) => {
+    const role = context.pharmacyContext?.role;
+    if (role !== "owner" && role !== "accountant") {
+      throw redirect({ to: "/inventory-ops" });
+    }
+  },
+  loader: () => pharmacyInventoryQuery(),
   head: () => ({
     meta: [
-      { title: "Inventory Intelligence — PharmaNudge" },
-      { name: "description", content: "What stock am I losing or about to run out of? Low stock, out of stock, expiry risk and value at risk." },
-      { property: "og:title", content: "Inventory Intelligence — PharmaNudge" },
-      { property: "og:description", content: "Low stock, out of stock, expiry risk and value at risk." },
-      { property: "og:type", content: "website" },
+      { title: "Inventory — PharmaNudge" },
+      {
+        name: "description",
+        content: "Current pharmacy stock, purchase value and expiry risk.",
+      },
     ],
   }),
   component: OwnerInventory,
 });
 
-/**
- * Owner-facing inventory intelligence: answers "what stock am I losing or
- * about to run out of?" — operational management lives in /inventory-ops.
- */
 function OwnerInventory() {
-  const stockValue = products.reduce((sum, p) => sum + p.baseUnitsInStock * p.costPerBaseUnit, 0);
-  const priorityActions = initialActions.filter((a) => a.severity !== "info").slice(0, 3);
+  const inventory = Route.useLoaderData();
+  const { pharmacyContext } = Route.useRouteContext();
+  const outOfStock = inventory.filter(
+    (row) => row.is_active && !hasInventoryQuantity(row.available_quantity),
+  );
+  const expiring = inventory.filter((row) => hasInventoryQuantity(row.expiring_quantity));
+  const expired = inventory.filter((row) => hasInventoryQuantity(row.expired_quantity));
+  const stockValue = sumInventoryValues(inventory.map((row) => row.stock_value));
+  const expiringValue = sumInventoryValues(inventory.map((row) => row.expiring_value));
+  const asOfDate = inventory[0]?.as_of_date;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 lg:max-w-none">
       <PageHeader
         title="Inventory"
-        description="What stock am I losing or about to run out of?"
+        description="Current stock, purchase value and expiry risk."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link to="/inventory-ops">Open operations view</Link>
@@ -49,151 +58,114 @@ function OwnerInventory() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Stock value" value={formatNaira(stockValue)} sub="at cost price" icon={Wallet} />
         <KpiCard
-          label="Out of stock"
-          value={String(outOfStockProducts.length)}
-          sub="items"
-          icon={PackageX}
-          tone={outOfStockProducts.length > 0 ? "danger" : "success"}
+          label="Stock value"
+          value={formatInventoryMoney(stockValue)}
+          sub="at purchase cost, including expired stock"
+          icon={Wallet}
         />
         <KpiCard
-          label="Low stock"
-          value={String(lowStockProducts.length)}
-          sub="below reorder level"
+          label="Out of stock"
+          value={String(outOfStock.length)}
+          sub="active products with no available stock"
+          icon={PackageX}
+          tone={outOfStock.length > 0 ? "danger" : "success"}
+        />
+        <KpiCard
+          label="Expired stock"
+          value={String(expired.length)}
+          sub="products with expired quantities"
           icon={TriangleAlert}
-          tone={lowStockProducts.length > 0 ? "warning" : "success"}
+          tone={expired.length > 0 ? "danger" : "success"}
         />
         <KpiCard
           label="Value at risk"
-          value={formatNaira(expiryValueAtRisk)}
-          sub="expiring ≤ 30 days"
+          value={formatInventoryMoney(expiringValue)}
+          sub="unexpired stock expiring within 30 days"
           icon={CalendarClock}
-          tone={expiryValueAtRisk > 0 ? "warning" : "success"}
-          href="/expiry"
+          tone={expiring.length > 0 ? "warning" : "success"}
         />
       </div>
 
-      {/* Out of stock */}
+      {inventory.length === 0 && (
+        <p className="rounded-xl border p-4 text-sm text-muted-foreground">
+          No products in this pharmacy yet.
+        </p>
+      )}
+
       <InventorySection
         title="Out of stock"
-        tone="danger"
-        empty="Nothing is out of stock right now."
-        items={outOfStockProducts.map((p) => ({
-          id: p.id,
-          title: p.name,
-          detail: `${p.category} · ${p.shelfLocation}`,
-          trailing: (
-            <Button asChild size="sm" variant="outline">
-              <Link to="/receive-stock">Receive stock</Link>
-            </Button>
-          ),
-        }))}
+        empty="All active products have available stock."
+        rows={outOfStock}
+        detail={(row) =>
+          `${row.category || "Uncategorised"} · Shelf: ${row.shelf_location || "Not assigned"}`
+        }
       />
+      {outOfStock.length > 0 && pharmacyContext?.role === "owner" && (
+        <Button asChild variant="outline" className="self-start">
+          <Link to="/receive-stock">Receive stock</Link>
+        </Button>
+      )}
 
-      {/* Low stock */}
-      <InventorySection
-        title="Low stock"
-        tone="warning"
-        empty="No items below their reorder level."
-        items={lowStockProducts.map((p) => ({
-          id: p.id,
-          title: p.name,
-          detail: `${baseStockLabel(p)} left · reorder at ${p.reorderLevelBaseUnits.toLocaleString("en-US")}`,
-          trailing: (
-            <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-              Reorder
-            </span>
-          ),
-        }))}
-      />
-
-      {/* Expiry risk */}
       <InventorySection
         title="Expiry risk — next 30 days"
-        tone="warning"
-        empty="No batches expiring within 30 days."
-        items={expiringBatches.map((b) => {
-          const product = productById(b.productId);
-          const tone = expiryTone(b.daysToExpiry);
-          return {
-            id: b.id,
-            title: `${product?.name ?? b.productId} · Batch ${b.batchNumber}`,
-            detail: `${b.baseUnitsRemaining.toLocaleString("en-US")} ${product?.baseUnitLabel ?? "unit"}s · value ${formatNaira(b.baseUnitsRemaining * b.costPerBaseUnit)}`,
-            trailing: (
-              <span
-                className={
-                  tone === "critical"
-                    ? "rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive"
-                    : "rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning"
-                }
-              >
-                {b.daysToExpiry} days
-              </span>
-            ),
-          };
-        })}
-        footerLink={
-          <Link to="/expiry" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            Open Expiry Center <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
+        empty="No remaining stock expires within the next 30 days."
+        rows={expiring}
+        detail={(row) =>
+          `${formatInventoryQuantity(row.expiring_quantity)} ${row.base_unit_label} · Purchase value: ${formatInventoryMoney(row.expiring_value)}`
         }
       />
 
-      {/* Prioritized actions */}
-      <section aria-label="Prioritized inventory actions">
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          <Boxes className="h-4 w-4" aria-hidden />
-          Prioritized actions
-        </h2>
-        <div className="flex flex-col gap-2.5">
-          {priorityActions.map((action) => (
-            <ActionCard key={action.id} action={action} />
-          ))}
-        </div>
-      </section>
+      <InventorySection
+        title="Expired stock"
+        empty="No expired stock remains."
+        rows={expired}
+        detail={(row) =>
+          `${formatInventoryQuantity(row.expired_quantity)} ${row.base_unit_label} expired · Excluded from available stock`
+        }
+      />
+
+      <p className="text-xs text-muted-foreground">
+        Quantities are shown in base units. Stock expiring today is treated as expired.
+        {asOfDate ? ` Expiry assessed as of ${formatInventoryDate(asOfDate)} in Lagos.` : ""}
+      </p>
     </div>
   );
 }
 
-interface SectionItem {
-  id: string;
-  title: string;
-  detail: string;
-  trailing?: React.ReactNode;
-}
-
 function InventorySection({
   title,
-  items,
   empty,
-  footerLink,
+  rows,
+  detail,
 }: {
   title: string;
-  tone: "danger" | "warning";
-  items: SectionItem[];
   empty: string;
-  footerLink?: React.ReactNode;
+  rows: PharmacyInventoryRow[];
+  detail: (row: PharmacyInventoryRow) => string;
 }) {
   return (
     <section aria-label={title}>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
-      {items.length === 0 ? (
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h2>
+      {rows.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
           {empty}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 rounded-xl border bg-card p-3.5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{item.title}</p>
-                <p className="text-xs tabular-nums text-muted-foreground">{item.detail}</p>
-              </div>
-              {item.trailing}
+          {rows.map((row) => (
+            <div key={row.product_id} className="rounded-xl border bg-card p-3.5">
+              <p className="break-words text-sm font-semibold">
+                {row.product_name}
+                {!row.is_active && (
+                  <span className="ml-2 text-xs text-muted-foreground">Inactive product</span>
+                )}
+              </p>
+              <p className="text-xs tabular-nums text-muted-foreground">{detail(row)}</p>
             </div>
           ))}
-          {footerLink}
         </div>
       )}
     </section>
