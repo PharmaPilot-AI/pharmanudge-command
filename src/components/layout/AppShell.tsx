@@ -16,8 +16,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { member, mode } = useAppMode();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const visibleOpsNav =
-    member.role === "owner" ? opsNav : opsNav.filter((item) => item.to !== "/users");
+  const visibleOpsNav = opsNav.filter((item) => {
+    if (item.to === "/users") return member.role === "owner";
+    if (item.to === "/receive-stock") {
+      return member.role === "owner" || member.role === "pharmacist";
+    }
+    return true;
+  });
   const items = mode === "owner" ? ownerNav : visibleOpsNav;
   const mobilePrimary =
     mode === "owner"
