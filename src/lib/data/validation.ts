@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { listPharmacyInventory } from "./inventory";
+import { listPharmacyInventory, listPharmacyStockBatches } from "./inventory";
 import { confirmStockReceipt, getStockReceiptCatalogue } from "./stock-receipts";
 import { stockReceiptSchema } from "./stock-receipt-schema";
 import { createProduct, updateProduct, deleteProduct } from "./products";
@@ -191,4 +191,8 @@ export const stockReceiptCatalogueQuery = createServerFn({ method: "GET" }).hand
 
 export const pharmacyInventoryQuery = createServerFn({ method: "GET" }).handler(() =>
   listPharmacyInventory(),
+);
+
+export const pharmacyStockBatchesQuery = createServerFn({ method: "GET" }).handler(() =>
+  listPharmacyStockBatches(),
 );

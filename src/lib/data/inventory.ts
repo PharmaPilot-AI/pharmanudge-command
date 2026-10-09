@@ -24,3 +24,24 @@ export async function listPharmacyInventory(): Promise<PharmacyInventoryRow[]> {
 
   return data ?? [];
 }
+
+export type PharmacyStockBatchRow =
+  Database["public"]["Functions"]["list_pharmacy_stock_batches"]["Returns"][number];
+
+/** Returns remaining batches from the authenticated caller's pharmacy. */
+export async function listPharmacyStockBatches(): Promise<PharmacyStockBatchRow[]> {
+  const session = await resolveSessionUser();
+  if (!session) throw new Error("Please sign in to view stock batches.");
+
+  const client = createServerSupabaseClient(session.accessToken);
+  const context = await requirePharmacyContext(client);
+  const { data, error } = await client.rpc("list_pharmacy_stock_batches", {
+    target_pharmacy_id: context.pharmacyId,
+  });
+
+  if (error) {
+    throw new Error("Unable to load stock batches. Please try again.");
+  }
+
+  return data ?? [];
+}
