@@ -1,3 +1,5 @@
+import { confirmPharmacySale, getPosCatalogue } from "./sales";
+import { saleSchema } from "./sale-schema";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { listPharmacyInventory, listPharmacyStockBatches } from "./inventory";
@@ -196,3 +198,11 @@ export const pharmacyInventoryQuery = createServerFn({ method: "GET" }).handler(
 export const pharmacyStockBatchesQuery = createServerFn({ method: "GET" }).handler(() =>
   listPharmacyStockBatches(),
 );
+
+// --- POS sales ---
+
+export const posCatalogueQuery = createServerFn({ method: "GET" }).handler(() => getPosCatalogue());
+
+export const confirmPharmacySaleMutation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => saleSchema.parse(input))
+  .handler(({ data }) => confirmPharmacySale(data));

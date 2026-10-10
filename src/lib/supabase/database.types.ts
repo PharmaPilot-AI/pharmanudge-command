@@ -222,6 +222,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_pharmacy_sale: {
+        Args: {
+          target_pharmacy_id: string
+          operation_id: string
+          sale_payment_method: string
+          sale_lines: Json
+        }
+        Returns: string
+      }
       list_pharmacy_stock_batches: {
         Args: { target_pharmacy_id: string }
         Returns: {

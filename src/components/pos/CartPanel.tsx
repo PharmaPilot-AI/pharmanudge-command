@@ -24,6 +24,8 @@ interface CartPanelProps {
   onCheckout: () => void;
   /** True when any product line exceeds available stock. */
   hasStockConflict: boolean;
+  checkoutDisabled?: boolean;
+  editingDisabled?: boolean;
 }
 
 /** Persistent sale cart: lines, payment method and revenue-split totals. */
@@ -36,14 +38,13 @@ export function CartPanel({
   onRemove,
   onCheckout,
   hasStockConflict,
+  checkoutDisabled = false,
+  editingDisabled = false,
 }: CartPanelProps) {
   const totals = cartTotals(lines);
 
   return (
-    <section
-      aria-label="Current sale"
-      className="flex h-full flex-col rounded-xl border bg-card"
-    >
+    <section aria-label="Current sale" className="flex h-full flex-col rounded-xl border bg-card">
       <header className="flex items-center justify-between border-b px-4 py-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <ShoppingCart className="h-4 w-4 text-primary" aria-hidden />
@@ -54,7 +55,7 @@ export function CartPanel({
         </span>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-3">
+      <fieldset disabled={editingDisabled} className="min-w-0 flex-1 overflow-y-auto p-3">
         {lines.length === 0 ? (
           <EmptyState
             icon={ShoppingCart}
@@ -83,7 +84,7 @@ export function CartPanel({
             )}
           </div>
         )}
-      </div>
+      </fieldset>
 
       <footer className="border-t p-4">
         <dl className="flex flex-col gap-1.5 text-sm">
@@ -94,7 +95,9 @@ export function CartPanel({
           {totals.serviceRevenue > 0 && (
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Services</dt>
-              <dd className="font-medium tabular-nums text-info">{formatNaira(totals.serviceRevenue)}</dd>
+              <dd className="font-medium tabular-nums text-info">
+                {formatNaira(totals.serviceRevenue)}
+              </dd>
             </div>
           )}
           <Separator className="my-1" />
@@ -109,6 +112,7 @@ export function CartPanel({
             <button
               key={m.id}
               type="button"
+              disabled={editingDisabled}
               onClick={() => onPaymentMethodChange(m.id)}
               aria-pressed={paymentMethod === m.id}
               className={cn(
@@ -127,7 +131,7 @@ export function CartPanel({
         <Button
           size="lg"
           className="mt-3 h-12 w-full text-base font-semibold"
-          disabled={lines.length === 0 || hasStockConflict}
+          disabled={lines.length === 0 || hasStockConflict || checkoutDisabled}
           onClick={onCheckout}
         >
           Charge {formatNaira(totals.total)}
