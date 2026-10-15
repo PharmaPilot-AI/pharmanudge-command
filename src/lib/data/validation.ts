@@ -6,6 +6,7 @@ import { getPharmacyDaySummary, closePharmacyDay } from "./day-closing";
 import { closeDaySchema } from "./day-closing-schema";
 import { getPharmacyFinancialSummary } from "./financial";
 import { reportPeriodSchema } from "./financial-schema";
+import { getPharmacyStockHealth } from "./stock-health";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { listPharmacyInventory, listPharmacyStockBatches } from "./inventory";
@@ -238,3 +239,9 @@ export const closePharmacyDayMutation = createServerFn({ method: "POST" })
 export const pharmacyFinancialSummaryQuery = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ period: reportPeriodSchema }).strict().parse(input))
   .handler(({ data }) => getPharmacyFinancialSummary(data.period));
+
+// --- Owner dashboard stock health ---
+
+export const pharmacyStockHealthQuery = createServerFn({ method: "GET" }).handler(() =>
+  getPharmacyStockHealth(),
+);

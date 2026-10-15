@@ -1,30 +1,23 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
-  ArrowRight,
   Banknote,
   Boxes,
   CalendarClock,
   CircleDollarSign,
   PackageX,
-  Sparkles,
   TrendingUp,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ActionCard } from "@/components/actions/ActionCard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi/KpiCard";
-import { ReconciliationBadge } from "@/components/kpi/ReconciliationBadge";
-import { useAppMode } from "@/lib/app-mode";
 import { resolveHome } from "@/lib/auth/redirect";
 import {
-  expiringBatches,
-  initialActions,
-  lowStockProducts,
-  outOfStockProducts,
-  todayKpis,
-  dailyBrief,
-} from "@/lib/mock-data";
-import { formatNaira } from "@/lib/money";
+  pharmacyFinancialSummaryQuery,
+  pharmacyDaySummaryQuery,
+  pharmacyStockHealthQuery,
+} from "@/lib/data/validation";
+import { financialMoney, financialPercent } from "@/lib/financial-format";
 
 export const Route = createFileRoute("/")({
   beforeLoad: ({ context }) => {
@@ -33,153 +26,201 @@ export const Route = createFileRoute("/")({
       throw redirect({ to: resolveHome(role) });
     }
   },
+  loader: async () => {
+    const [financial, day, stock] = await Promise.all([
+      pharmacyFinancialSummaryQuery({ data: { period: "today" } }),
+      pharmacyDaySummaryQuery(),
+      pharmacyStockHealthQuery(),
+    ]);
+
+    if (financial.end_date !== day.business_date || financial.end_date !== stock.as_of_date) {
+      throw new Error("The business date changed. Please refresh the dashboard.");
+    }
+
+    return { financial, day, stock };
+  },
   head: () => ({
     meta: [
       { title: "PharmaNudge — Pharmacy Command Center" },
       {
         name: "description",
-        content:
-          "See today's sales, profit, cash status and stock risks at a glance. PharmaNudge is the decision-intelligence platform for Nigerian pharmacies.",
+        content: "Today's pharmacy sales, recorded profit, reconciliation and stock health.",
       },
-      { property: "og:title", content: "PharmaNudge — Pharmacy Command Center" },
-      {
-        property: "og:description",
-        content:
-          "Sales, profit, cash and stock health for your pharmacy — understood in 60 seconds.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: OwnerHome,
 });
 
-/**
- * Owner Home / Command Center. Designed so the owner understands the health
- * of the pharmacy in ~60 seconds — KPIs and actions lead, not charts.
- */
 function OwnerHome() {
-  const { member } = useAppMode();
-  const firstName = member.name.split(" ")[0];
-  const cashVariance = todayKpis.countedCash - todayKpis.expectedCash;
-  const topActions = initialActions.slice(0, 3);
+  const { financial: f, day, stock } = Route.useLoaderData();
+  const closure = day.closure;
+  const hasOutOfStock = BigInt(stock.out_of_stock_products) > BigInt(0);
+  const hasExpiring = BigInt(stock.expiring_batches) > BigInt(0);
+  const hasExpired = BigInt(stock.expired_batches) > BigInt(0);
+  const hasVariance = closure !== null && Number(closure.cash_variance) !== 0;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 lg:max-w-none">
-      {/* Greeting */}
+    <div className="flex max-w-5xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Good morning, {firstName}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Sunday, 23 August 2026 · Here is your pharmacy at a glance.
-        </p>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Your pharmacy at a glance</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{f.end_date} · Lagos time</p>
       </div>
 
-      {/* Money KPIs */}
-      <section aria-label="Today's money">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <KpiCard
-            label="Today's Sales"
-            value={formatNaira(todayKpis.salesTotal)}
-            deltaPct={todayKpis.salesDeltaPct}
-            icon={Banknote}
-            tone="success"
-            href="/money"
-          />
-          <KpiCard
-            label="Gross Margin"
-            value={formatNaira(todayKpis.grossMargin)}
-            sub={`${todayKpis.grossMarginPct}% of sales`}
-            icon={TrendingUp}
-            href="/money"
-          />
-          <KpiCard
-            label="Est. Net Profit"
-            value={formatNaira(todayKpis.estimatedNetProfit)}
-            sub={`After ${formatNaira(todayKpis.expensesTotal)} expenses`}
-            icon={CircleDollarSign}
-            href="/money"
-          />
-          <KpiCard
-            label="Cash Status"
-            value={formatNaira(todayKpis.countedCash)}
-            sub={`Expected ${formatNaira(todayKpis.expectedCash)}`}
-            icon={Wallet}
-            tone={cashVariance === 0 ? "success" : "danger"}
-            href="/close-day"
-            footer={<ReconciliationBadge variance={cashVariance} />}
-          />
-        </div>
+      <section aria-label="Today's money" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard
+          label="Today's sales"
+          value={financialMoney(f.total_sales)}
+          sub={`${f.sale_count} transactions`}
+          icon={Banknote}
+          href="/money"
+        />
+        <KpiCard
+          label="Gross profit"
+          value={financialMoney(f.gross_profit)}
+          sub={`${financialPercent(f.gross_profit, f.total_sales)} of sales`}
+          icon={TrendingUp}
+          href="/money"
+        />
+        <KpiCard
+          label="Est. net profit"
+          value={financialMoney(f.estimated_net_profit)}
+          sub={`After ${financialMoney(f.total_expenses)} recorded expenses`}
+          icon={CircleDollarSign}
+          href="/money"
+        />
+        <KpiCard
+          label="Cash status"
+          value={closure ? financialMoney(closure.counted_cash) : "Not reconciled"}
+          sub={
+            closure ? `Saved variance ${financialMoney(closure.cash_variance)}` : "Today is open"
+          }
+          icon={Wallet}
+          href="/close-day"
+          tone={closure ? (hasVariance ? "danger" : "success") : "warning"}
+        />
       </section>
 
-      {/* Stock health */}
       <section aria-label="Stock health">
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Stock health
         </h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiCard
             label="Out of stock"
-            value={String(outOfStockProducts.length)}
-            sub="items"
+            value={stock.out_of_stock_products}
+            sub={`Of ${stock.active_products} active products · no unexpired stock`}
             icon={PackageX}
-            tone={outOfStockProducts.length > 0 ? "danger" : "success"}
+            tone={hasOutOfStock ? "danger" : "success"}
             href="/inventory"
           />
           <KpiCard
             label="Low stock"
-            value={String(lowStockProducts.length)}
-            sub="items"
+            value="Not configured"
+            sub="Product reorder thresholds are not yet available"
             icon={Boxes}
-            tone={lowStockProducts.length > 0 ? "warning" : "success"}
             href="/inventory"
           />
           <KpiCard
-            label="Expiry risk"
-            value={String(expiringBatches.length)}
-            sub="batches ≤ 30 days"
+            label="Expiring soon"
+            value={stock.expiring_batches}
+            sub="Remaining batches · next 30 days"
             icon={CalendarClock}
-            tone={expiringBatches.length > 0 ? "warning" : "success"}
+            tone={hasExpiring ? "warning" : "success"}
+            href="/expiry"
+          />
+          <KpiCard
+            label="Expired stock"
+            value={stock.expired_batches}
+            sub="Remaining batches · includes expiry today"
+            icon={PackageX}
+            tone={hasExpired ? "danger" : "success"}
             href="/expiry"
           />
         </div>
       </section>
 
-      {/* Top actions */}
-      <section aria-label="Actions requiring attention">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Needs your attention
-          </h2>
-          <Link
-            to="/actions"
-            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-          >
-            View all
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </div>
-        <div className="flex flex-col gap-2.5">
-          {topActions.map((action) => (
-            <ActionCard key={action.id} action={action} />
-          ))}
-        </div>
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Needs your attention</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {hasExpired && (
+            <Attention
+              text={`${stock.expired_batches} expired batches still have stock. Review and separate them from saleable stock.`}
+              to="/expiry"
+              label="Review expired stock"
+            />
+          )}
+          {hasExpiring && (
+            <Attention
+              text={`${stock.expiring_batches} remaining batches expire within 30 days. Review them before deciding what action to take.`}
+              to="/expiry"
+              label="Review expiry"
+            />
+          )}
+          {hasOutOfStock && (
+            <Attention
+              text={`${stock.out_of_stock_products} active products have no unexpired stock available. Review stock before reordering.`}
+              to="/inventory"
+              label="Review inventory"
+            />
+          )}
+          <Attention
+            text={
+              closure
+                ? hasVariance
+                  ? `The saved cash reconciliation has a variance of ${financialMoney(closure.cash_variance)}. Review the closing record.`
+                  : "Today's saved cash reconciliation is balanced."
+                : "Today's cash drawer has not been reconciled. Review opening cash and count the drawer before closing."
+            }
+            to="/close-day"
+            label={closure ? "View closing" : "Review reconciliation"}
+          />
+        </CardContent>
+      </Card>
 
-      {/* Daily brief */}
-      <section aria-label="Daily business brief">
-        <div className="rounded-xl border bg-card p-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <span className="grid h-7 w-7 place-items-center rounded-lg bg-primary/10 text-primary">
-              <Sparkles className="h-4 w-4" aria-hidden />
-            </span>
-            Daily Business Brief
-          </h2>
-          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{dailyBrief}</p>
-          <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link to="/ask-ai">Ask PharmaNudge about today</Link>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Daily business brief</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Today's recorded sales are {financialMoney(f.total_sales)} across {f.sale_count}{" "}
+            transactions: {financialMoney(f.product_revenue)} from products and{" "}
+            {financialMoney(f.service_revenue)} from services. Recorded expenses total{" "}
+            {financialMoney(f.total_expenses)}, leaving estimated net profit of{" "}
+            {financialMoney(f.estimated_net_profit)} after recorded product costs and expenses.
+            There are {stock.out_of_stock_products} active products without unexpired stock and{" "}
+            {stock.expiring_batches} remaining batches expiring within 30 days.
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Summary of recorded figures. Service delivery costs are included only where recorded as
+            expenses.
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-4">
+            <Link to="/money">Review financial figures</Link>
           </Button>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Attention({
+  text,
+  to,
+  label,
+}: {
+  text: string;
+  to: "/expiry" | "/inventory" | "/close-day";
+  label: string;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm">{text}</p>
+      <Button asChild variant="outline" size="sm" className="shrink-0">
+        <Link to={to}>{label}</Link>
+      </Button>
     </div>
   );
 }
