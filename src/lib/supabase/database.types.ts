@@ -222,6 +222,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_pharmacy_financial_summary: {
+        Args: {
+          target_pharmacy_id: string
+          report_period?: string
+        }
+        Returns: Json
+      }
       close_pharmacy_day: {
         Args: {
           target_pharmacy_id: string

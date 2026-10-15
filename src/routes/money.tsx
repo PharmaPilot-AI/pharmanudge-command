@@ -1,134 +1,146 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Banknote, CircleDollarSign, ReceiptText, Stethoscope, TrendingUp, Wallet } from "lucide-react";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { Banknote, CircleDollarSign, ReceiptText, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi/KpiCard";
-import { ReconciliationBadge } from "@/components/kpi/ReconciliationBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { initialExpenses, todayKpis } from "@/lib/mock-data";
-import { formatNaira } from "@/lib/money";
+import { pharmacyFinancialSummaryQuery, pharmacyDaySummaryQuery } from "@/lib/data/validation";
+import { financialMoney, financialPercent } from "@/lib/financial-format";
 
 export const Route = createFileRoute("/money")({
+  beforeLoad: ({ context }) => {
+    const role = context.pharmacyContext?.role;
+    if (role !== "owner") {
+      throw redirect({ to: role === "accountant" ? "/reports" : "/pos" });
+    }
+  },
+  loader: async () => {
+    const [financial, day] = await Promise.all([
+      pharmacyFinancialSummaryQuery({ data: { period: "today" } }),
+      pharmacyDaySummaryQuery(),
+    ]);
+    if (financial.end_date !== day.business_date) {
+      throw new Error("The business date changed. Please refresh the page.");
+    }
+    return { financial, day };
+  },
   head: () => ({
     meta: [
       { title: "Money — PharmaNudge" },
-      { name: "description", content: "How much did I sell, how much did I make, and is my money complete? Revenue, profit and cash reconciliation." },
-      { property: "og:title", content: "Money — PharmaNudge" },
-      { property: "og:description", content: "Revenue, profit and cash reconciliation for your pharmacy." },
-      { property: "og:type", content: "website" },
+      {
+        name: "description",
+        content: "Daily pharmacy sales, recorded costs, expenses and reconciliation.",
+      },
     ],
   }),
   component: MoneyPage,
 });
 
-/** Owner money view: "How much did I sell / make — and is my money complete?" */
 function MoneyPage() {
-  const variance = todayKpis.countedCash - todayKpis.expectedCash;
-  const productShare = Math.round(
-    (todayKpis.productRevenue / todayKpis.salesTotal) * 100,
-  );
+  const { financial: f, day } = Route.useLoaderData();
+  const closure = day.closure;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 lg:max-w-none">
-      <PageHeader title="Money" description="Sales, profit and whether today's money is complete." />
+    <div className="flex max-w-4xl flex-col gap-5">
+      <PageHeader title="Money" description={`Today's figures · ${f.end_date} · Lagos time`} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
           label="Total sales"
-          value={formatNaira(todayKpis.salesTotal)}
-          deltaPct={todayKpis.salesDeltaPct}
+          value={financialMoney(f.total_sales)}
+          sub={`${f.sale_count} transactions`}
           icon={Banknote}
-          tone="success"
         />
         <KpiCard
-          label="Gross margin"
-          value={formatNaira(todayKpis.grossMargin)}
-          sub={`${todayKpis.grossMarginPct}% of sales`}
+          label="Gross profit"
+          value={financialMoney(f.gross_profit)}
+          sub={`${financialPercent(f.gross_profit, f.total_sales)} of sales`}
           icon={TrendingUp}
         />
         <KpiCard
           label="Est. net profit"
-          value={formatNaira(todayKpis.estimatedNetProfit)}
-          sub="after expenses"
+          value={financialMoney(f.estimated_net_profit)}
+          sub="after recorded expenses"
           icon={CircleDollarSign}
         />
         <KpiCard
           label="Expenses today"
-          value={formatNaira(todayKpis.expensesTotal)}
-          sub={`${initialExpenses.length} entries`}
+          value={financialMoney(f.total_expenses)}
+          sub={`${f.expense_count} entries`}
           icon={ReceiptText}
           href="/expenses"
         />
       </div>
 
-      {/* Revenue split — product vs service revenue is always distinguishable */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Where today's revenue came from</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex h-3.5 w-full overflow-hidden rounded-full" role="img" aria-label={`Product revenue ${productShare} percent, service revenue ${100 - productShare} percent`}>
-            <div className="bg-primary" style={{ width: `${productShare}%` }} />
-            <div className="bg-info" style={{ width: `${100 - productShare}%` }} />
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="flex items-start gap-2">
-              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" aria-hidden />
-              <div>
-                <p className="text-sm font-semibold tabular-nums">{formatNaira(todayKpis.productRevenue)}</p>
-                <p className="text-xs text-muted-foreground">Product sales · {productShare}%</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-info" aria-hidden />
-              <div>
-                <p className="flex items-center gap-1 text-sm font-semibold tabular-nums">
-                  {formatNaira(todayKpis.serviceRevenue)}
-                </p>
-                <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Stethoscope className="h-3 w-3" aria-hidden />
-                  Services · {100 - productShare}% · no stock impact
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Cash reconciliation */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <Wallet className="h-4 w-4 text-primary" aria-hidden />
-              Cash reconciliation
-            </CardTitle>
-            <ReconciliationBadge variance={variance} />
-          </div>
+        <CardHeader>
+          <CardTitle className="text-sm">Revenue and recorded costs</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="flex flex-col gap-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Expected cash</dt>
-              <dd className="font-medium tabular-nums">{formatNaira(todayKpis.expectedCash)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Counted cash</dt>
-              <dd className="font-medium tabular-nums">{formatNaira(todayKpis.countedCash)}</dd>
-            </div>
-            <div className="flex justify-between border-t pt-2">
-              <dt className="font-medium">Variance</dt>
-              <dd className="font-bold tabular-nums text-destructive">{formatNaira(variance)}</dd>
-            </div>
+            <Row label="Product revenue" value={financialMoney(f.product_revenue)} />
+            <Row label="Service revenue" value={financialMoney(f.service_revenue)} />
+            <Row
+              label="Service share of revenue"
+              value={financialPercent(f.service_revenue, f.total_sales)}
+            />
+            <Row label="Cost of products sold" value={financialMoney(f.product_cost)} />
           </dl>
-          <Button asChild className="mt-3 w-full sm:w-auto" size="sm">
-            <Link to="/close-day">
-              Review & close day
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Estimated net profit deducts recorded product costs and expenses. Service delivery costs
+            are included only where recorded as expenses.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Payments received</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <dl className="flex flex-col gap-2 text-sm">
+            <Row label="Cash sales" value={financialMoney(f.cash_sales)} />
+            <Row label="Bank transfer sales" value={financialMoney(f.transfer_sales)} />
+            <Row label="Card sales" value={financialMoney(f.card_sales)} />
+          </dl>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Cash reconciliation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {closure ? (
+            <>
+              <p className="mb-3 text-sm font-semibold">Day closed · saved reconciliation</p>
+              <dl className="flex flex-col gap-2 text-sm">
+                <Row label="Opening cash" value={financialMoney(closure.opening_cash)} />
+                <Row label="Expected cash" value={financialMoney(closure.expected_cash)} />
+                <Row label="Counted cash" value={financialMoney(closure.counted_cash)} />
+                <Row label="Variance" value={financialMoney(closure.cash_variance)} />
+              </dl>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Today is open. Opening cash and counted cash have not been saved. Review the drawer in
+              Close Day to establish the expected cash and variance.
+            </p>
+          )}
+          <Button asChild className="mt-4" size="sm">
+            <Link to="/close-day">{closure ? "View saved closing" : "Review & close day"}</Link>
           </Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right font-medium tabular-nums">{value}</dd>
     </div>
   );
 }

@@ -1,142 +1,154 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import {
-  BarChart3,
-  CalendarClock,
-  CircleDollarSign,
-  Stethoscope,
-  Users,
-  Wallet,
-} from "lucide-react";
-import { toast } from "sonner";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatNaira } from "@/lib/money";
-import { cn } from "@/lib/utils";
+import { pharmacyFinancialSummaryQuery } from "@/lib/data/validation";
+import { reportPeriodSchema } from "@/lib/data/financial-schema";
+import { financialMoney, financialPercent } from "@/lib/financial-format";
 
 export const Route = createFileRoute("/reports")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    period: reportPeriodSchema.catch("today").parse(search["period"]),
+  }),
+  beforeLoad: ({ context }) => {
+    const role = context.pharmacyContext?.role;
+    if (role !== "owner" && role !== "accountant") {
+      throw redirect({ to: "/pos" });
+    }
+  },
+  loaderDeps: ({ search }) => ({ period: search.period }),
+  loader: ({ deps }) => pharmacyFinancialSummaryQuery({ data: { period: deps.period } }),
   head: () => ({
     meta: [
       { title: "Reports — PharmaNudge" },
-      { name: "description", content: "Sales, profit, inventory valuation, expiry and service revenue reports." },
-      { property: "og:title", content: "Reports — PharmaNudge" },
-      { property: "og:description", content: "Sales, profit, inventory and service revenue reports." },
-      { property: "og:type", content: "website" },
+      {
+        name: "description",
+        content: "Pharmacy sales, recorded costs and expenses by reporting period.",
+      },
     ],
   }),
   component: ReportsPage,
 });
 
-const ranges = ["Today", "This week", "This month"] as const;
+const periods = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
+] as const;
 
-const reports = [
-  {
-    icon: BarChart3,
-    title: "Sales report",
-    stats: [
-      { label: "Total sales", value: formatNaira(386400) },
-      { label: "Transactions", value: "87" },
-    ],
-  },
-  {
-    icon: CircleDollarSign,
-    title: "Profit & margin",
-    stats: [
-      { label: "Gross margin", value: formatNaira(91600) },
-      { label: "Margin", value: "23.7%" },
-    ],
-  },
-  {
-    icon: Wallet,
-    title: "Inventory valuation",
-    stats: [
-      { label: "Stock value (cost)", value: formatNaira(129610) },
-      { label: "SKUs tracked", value: "10" },
-    ],
-  },
-  {
-    icon: CalendarClock,
-    title: "Expiry & wastage",
-    stats: [
-      { label: "Value at risk (≤30d)", value: formatNaira(21820) },
-      { label: "Batches flagged", value: "4" },
-    ],
-  },
-  {
-    icon: Stethoscope,
-    title: "Service revenue",
-    stats: [
-      { label: "Today", value: formatNaira(27500) },
-      { label: "Share of revenue", value: "7%" },
-    ],
-  },
-  {
-    icon: Users,
-    title: "Staff activity",
-    stats: [
-      { label: "Sales by cashier", value: "Blessing · 52" },
-      { label: "Adjustments", value: "1 pending review" },
-    ],
-  },
-];
-
-/** Reports hub — summary cards now, full drill-down reports in Phase 2. */
 function ReportsPage() {
-  const [range, setRange] = useState<(typeof ranges)[number]>("Today");
+  const f = Route.useLoaderData();
 
   return (
     <div className="flex max-w-4xl flex-col gap-5">
-      <PageHeader title="Reports" description="Deeper reads on sales, profit, stock and people." />
+      <PageHeader
+        title="Reports"
+        description={`${f.start_date} to ${f.end_date} · Lagos time · weeks start Monday`}
+      />
 
-      <div className="flex gap-1.5 rounded-lg border bg-muted p-1 sm:w-fit" role="group" aria-label="Report period">
-        {ranges.map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            aria-pressed={range === r}
-            className={cn(
-              "min-h-9 flex-1 rounded-md px-4 text-sm font-medium transition-colors sm:flex-none",
-              range === r ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-            )}
+      <nav aria-label="Report period" className="flex flex-wrap gap-2">
+        {periods.map((period) => (
+          <Button
+            key={period.value}
+            asChild
+            variant={f.period === period.value ? "default" : "outline"}
+            size="sm"
           >
-            {r}
-          </button>
+            <Link
+              to="/reports"
+              search={{ period: period.value }}
+              aria-current={f.period === period.value ? "page" : undefined}
+            >
+              {period.label}
+            </Link>
+          </Button>
         ))}
+      </nav>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Sales</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="flex flex-col gap-2 text-sm">
+              <Row label="Total sales" value={financialMoney(f.total_sales)} />
+              <Row label="Transactions" value={f.sale_count} />
+              <Row label="Product revenue" value={financialMoney(f.product_revenue)} />
+              <Row label="Service revenue" value={financialMoney(f.service_revenue)} />
+              <Row
+                label="Service share"
+                value={financialPercent(f.service_revenue, f.total_sales)}
+              />
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Profit and expenses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="flex flex-col gap-2 text-sm">
+              <Row label="Cost of products sold" value={financialMoney(f.product_cost)} />
+              <Row label="Gross profit" value={financialMoney(f.gross_profit)} />
+              <Row label="Gross margin" value={financialPercent(f.gross_profit, f.total_sales)} />
+              <Row label="Recorded expenses" value={financialMoney(f.total_expenses)} />
+              <Row label="Expense entries" value={f.expense_count} />
+              <Row label="Est. net profit" value={financialMoney(f.estimated_net_profit)} />
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Sales by payment method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="flex flex-col gap-2 text-sm">
+              <Row label="Cash" value={financialMoney(f.cash_sales)} />
+              <Row label="Bank transfer" value={financialMoney(f.transfer_sales)} />
+              <Row label="Card" value={financialMoney(f.card_sales)} />
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Current stock and expiry</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              View current stock valuation and remaining batches on the live inventory and expiry
+              pages. These are current balances, independent of the selected financial reporting
+              period.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/inventory">Inventory valuation</Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/expiry">Expiry batches</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {reports.map((report) => (
-          <Card key={report.title}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-secondary text-secondary-foreground">
-                  <report.icon className="h-4 w-4" aria-hidden />
-                </span>
-                {report.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="flex flex-col gap-1 text-sm">
-                {report.stats.map((s) => (
-                  <div key={s.label} className="flex justify-between gap-2">
-                    <dt className="text-muted-foreground">{s.label}</dt>
-                    <dd className="font-medium tabular-nums">{s.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 w-full"
-                onClick={() => toast.info(`${report.title} (${range}) — full report arrives in Phase 2`)}
-              >
-                Open report
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Estimated net profit deducts recorded product costs and expenses. Service delivery costs are
+        included only where recorded as expenses. A dash means the percentage is undefined because
+        total sales are zero.
+      </p>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right font-medium tabular-nums">{value}</dd>
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { recordPharmacyExpense, listPharmacyExpenses } from "./expenses";
 import { expenseSchema } from "./expense-schema";
 import { getPharmacyDaySummary, closePharmacyDay } from "./day-closing";
 import { closeDaySchema } from "./day-closing-schema";
+import { getPharmacyFinancialSummary } from "./financial";
+import { reportPeriodSchema } from "./financial-schema";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { listPharmacyInventory, listPharmacyStockBatches } from "./inventory";
@@ -230,3 +232,9 @@ export const pharmacyDaySummaryQuery = createServerFn({ method: "GET" }).handler
 export const closePharmacyDayMutation = createServerFn({ method: "POST" })
   .validator((input: unknown) => closeDaySchema.parse(input))
   .handler(({ data }) => closePharmacyDay(data));
+
+// --- Financial reporting ---
+
+export const pharmacyFinancialSummaryQuery = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ period: reportPeriodSchema }).strict().parse(input))
+  .handler(({ data }) => getPharmacyFinancialSummary(data.period));
