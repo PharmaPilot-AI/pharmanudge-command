@@ -222,6 +222,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      record_pharmacy_expense: {
+        Args: {
+          target_pharmacy_id: string
+          operation_id: string
+          expense_category: string
+          expense_description: string
+          expense_amount: number
+          expense_payment_source: string
+        }
+        Returns: string
+      }
+      list_pharmacy_expenses: {
+        Args: {
+          target_pharmacy_id: string
+          target_date?: string
+        }
+        Returns: {
+          expense_id: string
+          category: string
+          description: string
+          amount: string
+          payment_source: string
+          recorded_by: string
+          spent_at: string
+        }[]
+      }
       confirm_pharmacy_sale: {
         Args: {
           target_pharmacy_id: string
