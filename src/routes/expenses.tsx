@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ReceiptText } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +18,12 @@ import { pharmacyExpensesQuery, recordPharmacyExpenseMutation } from "@/lib/data
 import { EXPENSE_CATEGORIES, expenseSchema, type ExpenseInput } from "@/lib/data/expense-schema";
 
 export const Route = createFileRoute("/expenses")({
+  beforeLoad: ({ context }) => {
+    const role = context.pharmacyContext?.role;
+    if (role !== "owner" && role !== "pharmacist" && role !== "accountant") {
+      throw redirect({ to: "/pos" });
+    }
+  },
   loader: () => pharmacyExpensesQuery(),
   head: () => ({
     meta: [

@@ -18,6 +18,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const visibleOpsNav = opsNav.filter((item) => {
     if (item.to === "/users") return member.role === "owner";
+    if (item.to === "/expenses") {
+      return (
+        member.role === "owner" || member.role === "pharmacist" || member.role === "accountant"
+      );
+    }
     if (item.to === "/receive-stock") {
       return member.role === "owner" || member.role === "pharmacist";
     }
