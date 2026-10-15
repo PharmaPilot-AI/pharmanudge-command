@@ -7,6 +7,8 @@ import { closeDaySchema } from "./day-closing-schema";
 import { getPharmacyFinancialSummary } from "./financial";
 import { reportPeriodSchema } from "./financial-schema";
 import { getPharmacyStockHealth } from "./stock-health";
+import { getPharmacyActionQueue, refreshPharmacyActions, updatePharmacyAction } from "./actions";
+import { updateActionSchema } from "./action-schema";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { listPharmacyInventory, listPharmacyStockBatches } from "./inventory";
@@ -245,3 +247,17 @@ export const pharmacyFinancialSummaryQuery = createServerFn({ method: "GET" })
 export const pharmacyStockHealthQuery = createServerFn({ method: "GET" }).handler(() =>
   getPharmacyStockHealth(),
 );
+
+// --- Owner action queue ---
+
+export const pharmacyActionQueueQuery = createServerFn({ method: "GET" }).handler(() =>
+  getPharmacyActionQueue(),
+);
+
+export const refreshPharmacyActionsMutation = createServerFn({ method: "POST" }).handler(() =>
+  refreshPharmacyActions(),
+);
+
+export const updatePharmacyActionMutation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => updateActionSchema.parse(input))
+  .handler(({ data }) => updatePharmacyAction(data));

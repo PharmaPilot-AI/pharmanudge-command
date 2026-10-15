@@ -222,6 +222,48 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      list_pharmacy_actions: {
+        Args: {
+          target_pharmacy_id: string
+          target_date?: string
+        }
+        Returns: {
+          action_id: string
+          business_date: string
+          action_key: string
+          action_kind: string
+          severity: string
+          title: string
+          detail: string
+          source_snapshot: Json
+          source_active: boolean
+          status: string
+          snoozed_until: string | null
+          assignee_user_id: string | null
+          assignee_is_active: boolean
+          resolved_by: string | null
+          resolved_at: string | null
+          version: string
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      refresh_pharmacy_actions: {
+        Args: {
+          target_pharmacy_id: string
+        }
+        Returns: number
+      }
+      update_pharmacy_action: {
+        Args: {
+          target_pharmacy_id: string
+          target_action_id: string
+          expected_version: number
+          action_command: string
+          assigned_user_id?: string
+        }
+        Returns: string
+      }
       get_pharmacy_stock_health: {
         Args: {
           target_pharmacy_id: string
