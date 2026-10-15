@@ -89,6 +89,7 @@ export async function confirmPharmacySale(
 
   if (error) {
     const expectedMessages = [
+      "This business day is closed. New sales cannot be recorded.",
       "A selling price has changed. Refresh the catalogue and review the sale.",
       "This submission reference was already used for a different sale.",
       "An active product was not found in this pharmacy.",

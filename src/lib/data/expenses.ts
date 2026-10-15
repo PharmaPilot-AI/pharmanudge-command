@@ -37,6 +37,7 @@ export async function recordPharmacyExpense(input: ExpenseInput): Promise<Expens
     const expectedMessages: Record<string, readonly string[]> = {
       "22023": [
         "Valid expense details are required.",
+        "This business day is closed. New expenses cannot be recorded.",
         "Enter a positive amount with at most two decimal places.",
         "This submission reference was already used for a different expense.",
       ],

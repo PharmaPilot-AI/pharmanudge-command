@@ -222,6 +222,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      close_pharmacy_day: {
+        Args: {
+          target_pharmacy_id: string
+          operation_id: string
+          target_date: string
+          opening_cash_amount: number
+          counted_cash_amount: number
+          closure_notes: string
+          reviewed_totals: Json
+        }
+        Returns: string
+      }
+      get_pharmacy_day_summary: {
+        Args: {
+          target_pharmacy_id: string
+          target_date?: string
+        }
+        Returns: Json
+      }
       record_pharmacy_expense: {
         Args: {
           target_pharmacy_id: string
