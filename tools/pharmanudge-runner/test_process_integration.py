@@ -125,7 +125,9 @@ class ProcessIntegrationTests(unittest.TestCase):
                           'child=os.fork()\n'
                           'if child == 0: time.sleep(20)\n'
                           'else:\n'
-                          ' pathlib.Path(' + repr(str(pidfile)) + ').write_text(json.dumps([os.getpid(),child]))\n'
+                          ' ready=pathlib.Path(' + repr(str(pidfile) + '.tmp') + ')\n'
+                          ' ready.write_text(json.dumps([os.getpid(),child]))\n'
+                          ' os.replace(ready,' + repr(str(pidfile)) + ')\n'
                           ' time.sleep(20)\n')
                 harness = ('import runner,sys,pathlib\n'
                            'runner.STATE_PATH=pathlib.Path(' + repr(str(self.fixture.state)) + ')\n'
