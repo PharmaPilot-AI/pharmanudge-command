@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "dry_run": true,
+  "repo_dir": "/root/projects/pharmanudge-command",
+  "tasks": []
+}
