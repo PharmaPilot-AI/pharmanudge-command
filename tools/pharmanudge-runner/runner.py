@@ -15,6 +15,7 @@ import selectors
 import signal
 import subprocess
 import time
+import threading
 from pathlib import Path
 
 REPO = 'PharmaPilot-AI/pharmanudge-command'
@@ -77,15 +78,33 @@ class Runner:
             timeout = min(timeout, deadline - time.monotonic())
         if timeout <= 0:
             raise SafetyError('poll deadline exceeded')
+        p = None
         try:
-            p = subprocess.Popen(argv, cwd=cwd, env=SAFE_ENV, stdin=subprocess.DEVNULL,
-                                 stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, start_new_session=True)
-        except OSError:
-            raise SafetyError('command unavailable') from None
-        end = time.monotonic() + timeout
-        data = bytearray()
-        try:
+            pending = []
+            handlers = {}
+            # Defer Python's handled termination signals through Popen's return
+            # AND assignment. Blocking the OS signals here would leak a blocked
+            # mask into the worker; preexec_fn is unsafe in threaded callers.
+            # Only the main thread runs Python signal handlers or may replace them.
+            with contextlib.ExitStack() as restore:
+                if threading.current_thread() is threading.main_thread():
+                    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+                        handler = signal.getsignal(sig)
+                        if callable(handler):
+                            handlers[sig] = handler
+                            restore.callback(signal.signal, sig, handler)
+                            signal.signal(sig, lambda signum, frame: pending.append(signum))
+                try:
+                    p = subprocess.Popen(argv, cwd=cwd, env=SAFE_ENV, stdin=subprocess.DEVNULL,
+                                         stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+                                         stderr=subprocess.DEVNULL, start_new_session=True)
+                except OSError:
+                    raise SafetyError('command unavailable') from None
+            # Cleanup owns p before a deferred handler is allowed to raise.
+            for sig in pending:
+                handlers[sig](sig, None)
+            end = time.monotonic() + timeout
+            data = bytearray()
             with selectors.DefaultSelector() as sel:
                 if capture:
                     sel.register(p.stdout, selectors.EVENT_READ)
@@ -110,7 +129,7 @@ class Runner:
                 raise SafetyError('command failed')
             return data.decode('utf-8', errors='strict')
         except BaseException:
-            if grace:
+            if p is not None and grace:
                 self.kill_group(p.pid, signal.SIGTERM)
                 # Wait for the GROUP, not just the leader which may exit on TERM.
                 until = time.monotonic() + grace
@@ -122,10 +141,11 @@ class Runner:
                     time.sleep(min(.05, max(0, until - time.monotonic())))
             raise
         finally:
-            self.kill_group(p.pid, signal.SIGKILL)
-            p.wait()
-            if p.stdout:
-                p.stdout.close()
+            if p is not None:
+                self.kill_group(p.pid, signal.SIGKILL)
+                p.wait()
+                if p.stdout:
+                    p.stdout.close()
 
     @staticmethod
     def kill_group(pid, sig):
