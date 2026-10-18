@@ -1,3 +1,5 @@
+import { askPharmaNudge } from "./ask-ai";
+import { askAiInputSchema } from "./ask-ai-schema";
 import { confirmPharmacySale, getPosCatalogue } from "./sales";
 import { saleSchema } from "./sale-schema";
 import { recordPharmacyExpense, listPharmacyExpenses } from "./expenses";
@@ -67,6 +69,12 @@ function stripUndefined<T extends Record<string, unknown>>(
     [K in keyof T]: Exclude<T[K], undefined>;
   };
 }
+
+// --- Owner Ask PharmaNudge ---
+
+export const askPharmaNudgeAction = createServerFn({ method: "POST" })
+  .validator((input: unknown) => askAiInputSchema.parse(input))
+  .handler(({ data }) => askPharmaNudge(data));
 
 // --- Products ---
 

@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:ask-ai": "node --test tests/ask-ai-*.test.cjs",
     "format": "prettier --write ."
   },
   "overrides": {
