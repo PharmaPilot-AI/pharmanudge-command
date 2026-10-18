@@ -12,6 +12,10 @@ class DefaultConfigurationTests(unittest.TestCase):
         self.assertEqual(config['tasks'], [])
         self.assertEqual(config['repo_dir'], '/root/projects/pharmanudge-command')
 
+    def test_publication_example_has_no_authority(self):
+        config = json.loads(Path(__file__).with_name('publication-approval.example.json').read_text())
+        self.assertEqual(config, {'enabled': False, 'dry_run': True, 'approvals': []})
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -481,6 +481,10 @@ def main(argv=None):
     commands.add_parser('poll')
     commands.add_parser('init-state')
     commands.add_parser('verify-identity')
+    preview = commands.add_parser('publication-preview', help='inspect proposed result; never authorize or publish')
+    preview.add_argument('key')
+    publish = commands.add_parser('publish', help='operator-approved result publication only; never starts a worker')
+    publish.add_argument('key')
     pin = commands.add_parser('pin', help='print an UNAUTHORIZED review candidate')
     pin.add_argument('issue', type=int)
     reconcile = commands.add_parser('reconcile', help='mark an existing claim terminal, never retry')
@@ -502,6 +506,12 @@ def main(argv=None):
             result = r.poll()
             if result not in {'empty', 'disabled', 'already-claimed'}:
                 print(result)
+        elif args.action == 'publish':
+            from publisher import Publisher
+            print(json.dumps(Publisher(r).publish(args.key), sort_keys=True))
+        elif args.action == 'publication-preview':
+            from publisher import Publisher
+            print(json.dumps(Publisher(r).preview(args.key), sort_keys=True))
         elif args.action == 'pin':
             print(json.dumps(r.pin(args.issue), sort_keys=True))
         elif args.action == 'init-state':
