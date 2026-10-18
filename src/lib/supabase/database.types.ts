@@ -222,6 +222,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      reserve_pharmacy_ai_request: {
+        Args: {
+          target_pharmacy_id: string;
+        };
+        Returns: string;
+      };
       list_pharmacy_actions: {
         Args: {
           target_pharmacy_id: string

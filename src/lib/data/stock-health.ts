@@ -1,7 +1,7 @@
 import "@tanstack/react-start/server-only";
 import { z } from "zod";
 import { resolveSessionUser } from "../auth/context";
-import { requirePharmacyContext } from "../pharmacy-context";
+import { requirePharmacyContext, type PharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
 
 const count = z.string().regex(/^\d+$/);
@@ -17,12 +17,20 @@ const stockHealthSchema = z
   })
   .strict();
 
-export async function getPharmacyStockHealth() {
+export async function getPharmacyStockHealth(expectedContext?: PharmacyContext) {
   const session = await resolveSessionUser();
   if (!session) throw new Error("Please sign in to view dashboard stock health.");
 
   const client = createServerSupabaseClient(session.accessToken);
   const context = await requirePharmacyContext(client);
+  if (
+    expectedContext &&
+    (context.userId !== expectedContext.userId ||
+      context.pharmacyId !== expectedContext.pharmacyId ||
+      context.role !== expectedContext.role)
+  ) {
+    throw new Error("Pharmacy access changed while gathering evidence.");
+  }
 
   if (context.role !== "owner") {
     throw new Error("Only an active owner can view dashboard stock health.");
