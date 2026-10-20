@@ -98,8 +98,10 @@ def assemble(journal,run=docker):
         cid=run(*args,BASE).decode().strip();c.require(re.fullmatch('[0-9a-f]{64}',cid),'create_identity')
         state.update(phase='copy-intent',container=cid);c.s.atomic_json(journal,state)
         owned();raw=archive();validate_archive(raw);run('cp','-',cid+':/',data=raw)
-        owned();validate_diff(run('diff',cid).decode())
+        owned();state['phase']='diff-read';c.s.atomic_json(journal,state)
+        validate_diff(run('diff',cid).decode())
         # Copy-out verification reads the regular archive member without extracting it.
+        state['phase']='copy-out-read';c.s.atomic_json(journal,state)
         data=run('cp',cid+':/'+MEMBER,'-')
         with tarfile.open(fileobj=io.BytesIO(data),mode='r:') as t:
             ms=t.getmembers();c.require(len(ms)==1,'fixture_copy_out')
@@ -116,8 +118,9 @@ def assemble(journal,run=docker):
         owned();state.update(phase='complete',fixture_archive_sha256=hashlib.sha256(raw).hexdigest(),never_started=True)
         c.s.atomic_json(journal,state)
         return state
-    except BaseException:
-        state['phase']='unknown';c.s.atomic_json(journal,state)
+    except BaseException as exc:
+        code=str(exc) if isinstance(exc,c.Denied) and re.fullmatch('[a-z_]{1,80}',str(exc)) else 'adapter_exception'
+        state.update(failure_stage=state['phase'],failure_code=code,phase='unknown');c.s.atomic_json(journal,state)
         raise c.Denied('assembly_hold_manual_reconciliation') from None
     finally:
         if cid:

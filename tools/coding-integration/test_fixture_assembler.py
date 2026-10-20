@@ -71,6 +71,8 @@ class Assembly(unittest.TestCase):
                 if fail:
                     with self.assertRaises(c.Denied):a.assemble(journal,fake)
                     self.assertEqual(a.json.loads(journal.read_text())['phase'],'unknown')
+                    self.assertEqual(a.json.loads(journal.read_text())['failure_stage'],'commit-intent')
+                    self.assertEqual(a.json.loads(journal.read_text())['failure_code'],'adapter_exception')
                 else:self.assertEqual(a.assemble(journal,fake)['phase'],'complete')
                 self.assertEqual(sum(x[0]=='commit' for x in calls),1)
                 self.assertEqual(calls[-1],('rm','a'*64))
