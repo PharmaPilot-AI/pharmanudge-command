@@ -1,27 +1,30 @@
-# Harmless fixture image preparation
+# Local-only harmless fixture assembly (COMPATIBILITY-03)
 
-This image contains a fixed synthetic namespace probe, not a coding agent. It
-cannot establish provider/spending, coder, broker, checkpoint or release readiness.
-The source is prepared for host review; no image was built in the coordinator.
+No Dockerfile build is supported. The former bare-ID FROM caused registry metadata
+resolution despite pull=false and network=none. Do not repeat that procedure.
 
-On the existing authorized Docker host, first verify a clean exact source and
-that the FROM digest is already cached. Build with no network or image pull:
+Review the clean exact source and `../fixture_assembler.py` before physical use.
+The owner-authorized host can execute, with an unused private journal path:
 
 ```
-docker build --network=none --pull=false --tag pn-h4-harmless-qualification tools/coding-integration/fixture-image
-docker image inspect pn-h4-harmless-qualification --format '{{.Id}}'
+python3 -B tools/coding-integration/fixture_assembler.py --allow-stopped-local-assembly --source-sha <exact-clean-correction-SHA> --journal <private-new-attempt.json>
 ```
 
-Stop if the local builder cannot resolve the cached digest offline. Do not fetch
-dependencies, a builder or another image. Record the resulting immutable image
-digest for source review. Do not replace the existing production image/policy pin
-or relax image admission. Current policy deliberately rejects a different image;
-a later source-reviewed exact pin and dedicated qualification harness are needed
-before running the revised warden against it. A tag is not an approval or a pin.
+The assembler verifies the exact already-cached base ID, rejects volumes/ONBUILD/
+healthchecks, clears inherited environment values, creates a uniquely labeled
+never-started network-none/cap-drop container with no mounts, copies one
+root-owned deterministic regular-file archive via stdin, checks stopped identity,
+exact diff and copied fixture bytes/mode, then commits locally to an immutable ID.
+It verifies base layers and bounded committed config. It does not start a process,
+invoke a builder/registry, install dependencies, expose secrets or retag a base.
+Every attempted effect is journaled; create/commit uncertainty remains held with
+no automatic retry. Inspect the recorded name/ID manually on uncertainty. Cleanup
+removes only the exactly identified still-never-started owned container; an
+uncertain image is never automatically removed or reassembled.
 
-The four fixed child modes are success, failure (forged old marker plus exit 1),
-sleep (expiry/STOP testing) and descendant (reaping testing). The probe verifies
-UID/GID 65534, empty groups, zero effective/permitted capabilities, denial of root
-completion-directory access and PID-1 signalling. Its synthetic /out/probe.json
-is for the dedicated physical test harness only, not application-result export.
-Source/mock passes never count as a physical pass. Keep all live workers disabled.
+This is a qualification fixture, not a coder/production image pin. Production
+admission remains unchanged. A separately reviewed harmless adapter must pin the
+actual fixture ID and exact clean source before starting any revised warden.
+No provider inference, credential delivery or live activation is authorized.
+All spending admission remains default-denying/NOT VERIFIED until separately
+supported account-control evidence and activation authority exist.

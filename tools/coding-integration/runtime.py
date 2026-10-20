@@ -50,6 +50,18 @@ def plan(p,job,token,expiry):
       p['image'],'-I','-S','-B','/warden.py',str(expiry),token]
 
 
+def reviewed_capabilities(names):
+    allowed={'CHOWN','KILL','SETGID','SETUID'}
+    if type(names) is not list or len(names)!=4:return False
+    normalized=[]
+    for name in names:
+        if type(name) is not str:return False
+        name=name[4:] if name.startswith('CAP_') else name
+        if name not in allowed:return False
+        normalized.append(name)
+    return len(set(normalized))==4 and set(normalized)==allowed
+
+
 class Runtime:
     def __init__(self,vault,command=None,clock=time.time):
         self.v=vault;self.clock=clock;self.command=command or c.b.Command({'HOME':'/nonexistent','PATH':'/usr/bin:/bin'})
@@ -76,7 +88,7 @@ class Runtime:
             c.require(obj['Image']==p['image'] and cfg['User']=='0:0' and cfg['Entrypoint']==['/usr/local/bin/python3']
               and host['ReadonlyRootfs'] is True and host['NetworkMode']=='none' and host['Memory']==536870912
               and host['MemorySwap']==536870912 and host['NanoCpus']==1000000000 and host['PidsLimit']==64
-              and host['CapDrop']==['ALL'] and sorted(host.get('CapAdd',[]))==['CHOWN','KILL','SETGID','SETUID'] and not host['Privileged']
+              and host['CapDrop']==['ALL'] and reviewed_capabilities(host.get('CapAdd')) and not host['Privileged']
               and host['PidMode'] in ('','private') and not host.get('Devices') and not host.get('DeviceRequests')
               and 'no-new-privileges=true' in host['SecurityOpt'],'runtime_configuration')
             mounts={m['Destination']:(m['Source'],m['RW']) for m in obj['Mounts']}
