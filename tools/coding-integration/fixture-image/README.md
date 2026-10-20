@@ -1,5 +1,10 @@
 # Local-only harmless fixture assembly (COMPATIBILITY-03)
 
+**Current gate: the COMPATIBILITY-03 attempt remains held. ARCHIVE-FIX-01 only
+permits source correction and dummy-executable tests, not real assembly or a new
+journal. See [the correction and unexecuted experiment proposal](../ARCHIVE-FIX-01.md).
+The usage example below is not clearance to retry or bypass that hold.**
+
 No Dockerfile build is supported. The former bare-ID FROM caused registry metadata
 resolution despite pull=false and network=none. Do not repeat that procedure.
 

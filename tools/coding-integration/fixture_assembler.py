@@ -11,6 +11,7 @@ import re
 import subprocess
 import tarfile
 import uuid
+from typing import NoReturn
 import control as c
 
 BASE=c.b.IMAGE
@@ -29,16 +30,46 @@ def archive():
         t.addfile(x,io.BytesIO(raw))
     data=buf.getvalue();validate_archive(data);return data
 
-def validate_archive(data):
-    c.require(type(data) is bytes and len(data)<=32768,'fixture_tar')
+class ArchiveFailure(c.Denied):
+    def __init__(self,field,category,stage,byte_count,elapsed_ms):
+        self.evidence={'stage':stage,'category':category,'field':field,'archive_bytes':byte_count,'elapsed_ms':elapsed_ms}
+        super().__init__('archive_'+field)
+
+def verify_archive(data,*,copy_out):
+    import time
+    start=time.monotonic();stage='archive_output_verify' if copy_out else 'archive_input_verify'
+    size=len(data) if isinstance(data,bytes) else 0
+    def deny(field,category='archive_metadata') -> NoReturn:
+        raise ArchiveFailure(field,category,stage,size,round((time.monotonic()-start)*1000,3)) from None
+    if (not isinstance(data,bytes)) or (not copy_out and type(data) is not bytes):deny('input_type')
+    if size>(4*1024*1024 if copy_out else 32768):deny('output_limit','output_limit')
+    if size%512:deny('truncated','archive_parse')
+    expected=fixture()
     try:
         with tarfile.open(fileobj=io.BytesIO(data),mode='r:') as t:
-            members=t.getmembers();c.require(len(members)==1,'fixture_tar')
-            m=members[0]
-            c.require(m.name==MEMBER and m.isfile() and not m.linkname and m.uid==m.gid==m.mtime==0
-              and m.mode==0o555 and m.size==len(fixture()) and not m.pax_headers,'fixture_tar')
-            c.require(t.extractfile(m).read()==fixture(),'fixture_changed')
-    except (tarfile.TarError,ValueError,OSError):raise c.Denied('fixture_tar') from None
+            m=t.next()
+            if m is None:deny('member_count')
+            if m.offset_data+m.size>size:deny('truncated','archive_parse')
+            if len(t.getmembers())!=1:deny('member_count')
+            if not m.isfile():deny('type')
+            if m.linkname:deny('linkname')
+            if m.name!=(Path(MEMBER).name if copy_out else MEMBER):deny('name')
+            if m.uid!=0:deny('uid')
+            if m.gid!=0:deny('gid')
+            if m.mode!=0o555:deny('mode')
+            if m.size!=len(expected):deny('size')
+            if not copy_out and m.mtime!=0:deny('mtime')
+            if not copy_out and m.pax_headers:deny('pax_headers')
+            stream=t.extractfile(m)
+            if stream is None:deny('type')
+            if stream.read(len(expected)+1)!=expected:deny('content','archive_content')
+    except ArchiveFailure:raise
+    except (tarfile.TarError,ValueError,OSError,EOFError):deny('parse','archive_parse')
+    return {'stage':stage,'category':'ok','archive_bytes':size,'elapsed_ms':round((time.monotonic()-start)*1000,3)}
+
+def validate_archive(data):return verify_archive(data,copy_out=False)
+
+def verify_copy_out(data):return verify_archive(data,copy_out=True)
 
 def validate_base(obj):
     cfg=obj.get('Config',{})
@@ -68,23 +99,53 @@ def validate_config(actual,before):
       all(actual.get(k)==before.get(k) for k in set(actual)|{'Env','User','Entrypoint','Labels'}) and
       not any(actual.get(k) for k in ('Volumes','OnBuild','Healthcheck')),'fixture_image_configuration')
 
-def docker(*args,data=None):
-    try:
-        r=subprocess.run(['/usr/bin/docker','--host=unix:///var/run/docker.sock','--config=/nonexistent',*args],
-          input=data,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=30,
-          env={'HOME':'/nonexistent','PATH':'/usr/bin:/bin'})
-    except (OSError,subprocess.TimeoutExpired):raise c.Denied('docker_uncertain') from None
-    c.require(r.returncode==0 and len(r.stdout)<=4*1024*1024,'docker_failed_or_oversize')
-    return r.stdout
+DOCKER='/usr/bin/docker'
+
+def docker(*args,data=None,timeout: float=30,stdout_limit=4*1024*1024,stderr_limit=65536):
+    from bounded_process import capture
+    if args and args[0]=='cp':stage='docker_cp_in' if len(args)>1 and args[1]=='-' else 'docker_cp_out'
+    elif args[:2]==('image','inspect'):stage='docker_image_inspect'
+    elif args and args[0] in ('create','inspect','diff','commit','rm'):stage='docker_'+args[0]
+    else:stage='docker'
+    return capture([DOCKER,'--host=unix:///var/run/docker.sock','--config=/nonexistent',*args],
+      data=data,stage=stage,timeout=timeout,stdout_limit=stdout_limit,stderr_limit=stderr_limit)
+
+class AssemblyHold(c.Denied):
+    def __init__(self,state,code='assembly_hold_manual_reconciliation'):
+        self.evidence=state
+        super().__init__(code)
+
+def failure_record(exc,stage):
+    from bounded_process import Failure
+    if isinstance(exc,(Failure,ArchiveFailure)):record=dict(exc.evidence)
+    else:
+        codes={'unsafe_base','base_layers','base_env','foreign_or_started_container','unexpected_fixture_diff',
+          'fixture_image_configuration','assembly_configuration','create_identity','commit_identity','invalid_json','input_limit'}
+        record={'category':'metadata' if isinstance(exc,c.Denied) and str(exc) in codes else 'adapter_exception'}
+        if isinstance(exc,c.Denied) and str(exc) in codes:record['code']=str(exc)
+    record['operation_stage']=stage
+    return record
 
 def assemble(journal,run=docker):
     c.require(not journal.exists() and not journal.is_symlink(),'attempt_exists_manual_reconciliation')
     base=c.s.decode(run('image','inspect',BASE))[0];names=validate_base(base)
     token=uuid.uuid4().hex[:16];name='pn-assembler-'+token
     state={'phase':'create-intent','name':name,'token':token,'base':BASE,'fixture_sha256':hashlib.sha256(fixture()).hexdigest()}
-    c.s.atomic_json(journal,state);cid=None
-    def owned():
-        obj=c.s.decode(run('inspect',cid))[0];validate_owned(obj,cid,token)
+    state['diagnostics']=[]
+    c.s.atomic_json(journal,state);cid=None;primary=False
+    def invoke(stage,*args,data=None):
+        import time
+        from bounded_process import Output
+        state['operation_stage']=stage;c.s.atomic_json(journal,state)
+        started=time.monotonic()
+        result=run(*args,data=data) if data is not None else run(*args)
+        record=dict(result.evidence) if isinstance(result,Output) else {
+          'category':'adapter_return','process_evidence':False,'stdout_bytes':len(result),
+          'elapsed_ms':round((time.monotonic()-started)*1000,3),'exit_code':None}
+        record['operation_stage']=stage;state['diagnostics'].append(record);c.s.atomic_json(journal,state)
+        return result
+    def owned(stage='owned-inspect'):
+        obj=c.s.decode(invoke(stage,'inspect',cid))[0];validate_owned(obj,cid,token)
         h=obj['HostConfig'];cfg=obj['Config']
         c.require(h['NetworkMode']=='none' and not h['Privileged'] and h['CapDrop']==['ALL'] and
           not h.get('CapAdd') and cfg['Entrypoint']==['/bin/false'] and cfg['User']=='65534:65534' and
@@ -95,37 +156,47 @@ def assemble(journal,run=docker):
           '--security-opt=no-new-privileges=true','--user=65534:65534','--memory=64m','--memory-swap=64m','--pids-limit=16',
           '--entrypoint=/bin/false','--label=org.pharmanudge.fixture.assembly='+token]
         args+=['--env='+n+'=' for n in names]
-        cid=run(*args,BASE).decode().strip();c.require(re.fullmatch('[0-9a-f]{64}',cid),'create_identity')
+        cid=invoke('create',*args,BASE).decode().strip();c.require(re.fullmatch('[0-9a-f]{64}',cid),'create_identity')
         state.update(phase='copy-intent',container=cid);c.s.atomic_json(journal,state)
-        owned();raw=archive();validate_archive(raw);run('cp','-',cid+':/',data=raw)
-        owned();state['phase']='diff-read';c.s.atomic_json(journal,state)
-        validate_diff(run('diff',cid).decode())
+        owned('pre-copy-inspect');state['operation_stage']='copy-in-verify';raw=archive();state['diagnostics'].append(validate_archive(raw));invoke('copy-in','cp','-',cid+':/',data=raw)
+        owned('post-copy-inspect');state['phase']='diff-read';c.s.atomic_json(journal,state)
+        validate_diff(invoke('diff-read','diff',cid).decode())
         # Copy-out verification reads the regular archive member without extracting it.
         state['phase']='copy-out-read';c.s.atomic_json(journal,state)
-        data=run('cp',cid+':/'+MEMBER,'-')
-        with tarfile.open(fileobj=io.BytesIO(data),mode='r:') as t:
-            ms=t.getmembers();c.require(len(ms)==1,'fixture_copy_out')
-            m=ms[0];c.require(m.isfile() and not m.linkname and m.uid==m.gid==0 and m.mode==0o555 and
-              m.name==Path(MEMBER).name and m.size==len(fixture()) and t.extractfile(m).read()==fixture(),'fixture_copy_out')
-        before=owned();state['phase']='commit-intent';c.s.atomic_json(journal,state)
-        image=run('commit','--pause=false',cid).decode().strip();c.require(re.fullmatch('sha256:[0-9a-f]{64}',image),'commit_identity')
+        data=invoke('copy-out-read','cp',cid+':/'+MEMBER,'-')
+        state['operation_stage']='copy-out-verify'
+        state['diagnostics'].append(verify_copy_out(data));c.s.atomic_json(journal,state)
+        before=owned('precommit-inspect');state['phase']='commit-intent';c.s.atomic_json(journal,state)
+        image=invoke('commit','commit','--pause=false',cid).decode().strip();c.require(re.fullmatch('sha256:[0-9a-f]{64}',image),'commit_identity')
         state.update(phase='verify-image',image=image);c.s.atomic_json(journal,state)
-        output=c.s.decode(run('image','inspect',image))[0]
+        output=c.s.decode(invoke('image-verify','image','inspect',image))[0]
         c.require(output['Id']==image and output['RootFS']['Layers'][:-1]==base['RootFS']['Layers'] and
           len(output['RootFS']['Layers'])==len(base['RootFS']['Layers'])+1 and
           output.get('Os')==base.get('Os') and output.get('Architecture')==base.get('Architecture'),'fixture_image_configuration')
         validate_config(output['Config'],before['Config'])
-        owned();state.update(phase='complete',fixture_archive_sha256=hashlib.sha256(raw).hexdigest(),never_started=True)
+        owned('final-inspect');state.update(phase='complete',fixture_archive_sha256=hashlib.sha256(raw).hexdigest(),never_started=True)
         c.s.atomic_json(journal,state)
         return state
     except BaseException as exc:
-        code=str(exc) if isinstance(exc,c.Denied) and re.fullmatch('[a-z_]{1,80}',str(exc)) else 'adapter_exception'
-        state.update(failure_stage=state['phase'],failure_code=code,phase='unknown');c.s.atomic_json(journal,state)
-        raise c.Denied('assembly_hold_manual_reconciliation') from None
+        primary=True
+        failure=failure_record(exc,state.get('operation_stage','assembly'))
+        state.update(failure_stage=state['phase'],failure_code=failure.get('code',failure['category']),
+          primary_failure=failure,phase='unknown')
+        try:c.s.atomic_json(journal,state)
+        except OSError:state['primary_journal_error']=True
+        raise AssemblyHold(state) from None
     finally:
         if cid:
-            # Do not delete by guessed name after ambiguous create, nor a foreign object.
-            owned();run('rm',cid)
+            # Cleanup has its own evidence, never replaces a primary failure.
+            try:
+                owned('cleanup-inspect');invoke('cleanup-rm','rm',cid)
+                state['cleanup_complete']=True;c.s.atomic_json(journal,state)
+            except BaseException as exc:
+                state['cleanup_failure']=failure_record(exc,state.get('operation_stage','cleanup'))
+                state['phase']='unknown'
+                try:c.s.atomic_json(journal,state)
+                except OSError:state['cleanup_journal_error']=True
+                if not primary:raise AssemblyHold(state,'assembly_cleanup_hold_manual_reconciliation') from None
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--allow-stopped-local-assembly',action='store_true')
