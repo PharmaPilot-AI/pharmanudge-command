@@ -1,0 +1,44 @@
+{
+  "enabled": false,
+  "dry_run": true,
+  "policy": {
+    "version": 1,
+    "approved": false,
+    "window_id": null,
+    "control_source_sha": null,
+    "runner_reference_sha": "3babd020119b87f0079df6706f02062cb72c7b9e",
+    "base_commit": "e9f9a02870125eefd521b13cbe41cc2e0f39e3c2",
+    "issue": null,
+    "task_author_id": 319955168,
+    "task_author_login": "PharmaPilot-AI",
+    "task_body_sha256": null,
+    "paths": [
+      "src/lib/auth/login-native-fallback.test.cjs",
+      "src/routes/login.tsx"
+    ],
+    "not_before": null,
+    "not_after": null,
+    "max_polls": 12,
+    "poll_seconds": 300,
+    "max_starts": 1,
+    "worker_seconds": 1200,
+    "grace_seconds": 30,
+    "max_turns": 30,
+    "max_cost_microusd": 1000000,
+    "provider": "openai-codex",
+    "model": "gpt-6.1-sol"
+  },
+  "assignment": {
+    "execution_window_id": null,
+    "assignment_id": null,
+    "repo": "PharmaPilot-AI/pharmanudge-command",
+    "issue": null,
+    "author_id": 319955168,
+    "author_login": "PharmaPilot-AI",
+    "task_body_sha256": null,
+    "base_commit": "e9f9a02870125eefd521b13cbe41cc2e0f39e3c2",
+    "runner_source_sha": "3babd020119b87f0079df6706f02062cb72c7b9e",
+    "executor_source_sha": null,
+    "policy_sha256": null
+  }
+}
