@@ -58,7 +58,17 @@ class Runtime:
     def owned(self,token):
         c.require(re.fullmatch(r'[0-9a-f]{16}',token),'job_identity')
         obj=c.s.decode(self.docker('inspect','pn-h4-'+token))[0]
-        c.require(obj['Config']['Labels']=={'pharmanudge.handoff':'04','pharmanudge.job':token},'foreign_container')
+        # Docker inherits labels from the immutable image. Accept exactly that
+        # metadata plus our job labels, never arbitrary additional labels.
+        c.require(obj.get('Image')==c.b.IMAGE,'foreign_container')
+        image=c.s.decode(self.docker('image','inspect',c.b.IMAGE))[0]
+        c.require(image.get('Id')==c.b.IMAGE,'foreign_container')
+        labels=image.get('Config',{}).get('Labels') or {}
+        c.require(isinstance(labels,dict) and len(labels)<=64 and
+          all(isinstance(k,str) and isinstance(v,str) and len(k)<=1024 and len(v)<=4096
+              and not k.startswith('pharmanudge.') for k,v in labels.items()),'image_labels')
+        expected=dict(labels,**{'pharmanudge.handoff':'04','pharmanudge.job':token})
+        c.require(obj['Config']['Labels']==expected,'foreign_container')
         return obj
     def verify_container(self,p,job,token):
         try:
@@ -194,3 +204,4 @@ def capture(v,p,data,state):
     state.update(phase='review-needed',manifest=c.digest(manifest));v.save(state)
     c.s.atomic_json(folder/'manifest.json',manifest)
     return manifest
+
