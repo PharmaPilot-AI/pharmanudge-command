@@ -1,4 +1,5 @@
 """Operator-only durable integration. GitHub prose is input, never approval."""
+import copy
 import contextlib
 import fcntl
 import hashlib
@@ -71,6 +72,13 @@ def private_json(path):
     finally:os.close(fd)
 
 
+class QueueState(dict):
+    """Read snapshot for compare-before-write; never silently overwrite a newer guard."""
+    def __init__(self, value):
+        super().__init__(value)
+        self.expected=copy.deepcopy(value)
+
+
 class Vault:
     def __init__(self,root):
         self.root=Path(root).absolute();require(self.root.resolve()==self.root,'vault_alias')
@@ -97,8 +105,14 @@ class Vault:
         require(all(value[k] is None or s.hexdigest(value[k],64) for k in ('manifest','checkpoint')),'queue_schema')
         require(value['corrections']<=value['reviews'] and isinstance(value['events'],list) and len(value['events'])<=32,'queue_schema')
         return value
-    def read(self):return self.validate_state(private_json(self.path))
-    def save(self,value):s.atomic_json(self.path,self.validate_state(value))
+    def read(self):return QueueState(self.validate_state(private_json(self.path)))
+    def save(self,value):
+        self.validate_state(value)
+        current=private_json(self.path)
+        require(isinstance(value,QueueState) and current==value.expected,'stale_queue_write')
+        require(value['last_clock']>=current['last_clock'],'stale_queue_write')
+        s.atomic_json(self.path,value)
+        value.expected=copy.deepcopy(dict(value))
     def pickup(self,p,fetch):
         validate_policy(p)
         with self.locked():
@@ -154,7 +168,7 @@ class Vault:
                 state['resume_after']=status['retry_at'] if status['retry_at']>now else None
                 self.save(state);return False
             require(state['starts']<p['max_starts'],'start_budget')
-            self.guard(p,now,revalidate)
+            state=self.guard(p,now,revalidate)
             state['phase']='resume-ready';self.save(state);return True
     def review(self,p,now,revalidate):
         with self.locked():
@@ -181,7 +195,7 @@ class Vault:
                     and request['branch']=='handoff4/'+state['policy'][:32],'publication_pin')
             if state['publication'] is not None:require(state['publication']['request']==request,'publication_drift')
             found=remote.inspect(request)
-            self.guard(p,now,revalidate)
+            state=self.guard(p,now,revalidate)
             if found is not None:
                 require(state['publication'] is not None,'unexpected_existing_publication')
                 state.update(phase='published',publication={'request':request,'receipt':found});self.save(state);return found

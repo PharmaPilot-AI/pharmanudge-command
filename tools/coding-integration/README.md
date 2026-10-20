@@ -22,7 +22,8 @@ alternative is also prepared, not selected or enabled.
   checkpoint storage/restoration. Only the two explicit application paths may
   be imported. The base checkout is limited to 32 MiB / 10,000 regular files;
   symlinks/submodules and unsafe paths are refused. Root inputs are read-only.
-- `warden.py`: immutable namespace PID 1, UID/GID 65534, non-dumpable, with a
+- `warden.py`: immutable root namespace PID 1, non-dumpable, launching only a
+  UID/GID 65534 child (empty supplementary groups), with a
   maximum 900-second UTC+monotonic lease. Writable work/output/temp are bounded
   tmpfs (128/1/8 MiB); stdout/stderr go to DEVNULL, not an unbounded host log.
   Worker descendants are namespace-killed before output export and at expiry.
@@ -57,8 +58,8 @@ charges and any STOP/unresolved state remain authoritative. The new queue has no
 API to clear the old ledger or reopen uncertain outcomes.
 
 The trusted operator/Docker daemon/kernel remain trusted. A container is not a
-VM audit. Immutable configuration checks, no network/capabilities/devices,
-non-root runtime, descriptor-based no-follow/nonblocking export and separate
+VM audit. Immutable configuration checks, no network/devices,
+non-root worker, descriptor-based no-follow/nonblocking export and separate
 review reduce scope; they are not a hostile-kernel or arbitrary-code security
 certificate. The output scanner rejects selected secret-like markers but is
 **not** a general secret detector; independent publication sanitation is still
@@ -274,3 +275,40 @@ No independent reviewer is launched under this preparation authority.
 Automatic GitHub wake-up/dispatcher remains **not installed or active**. Real
 read-only ingress into a disposable disabled queue demonstrates entry-point
 pickup, not a background daemon awakening. No ongoing coordinator loop is claimed.
+
+
+## Independent-review corrections (disabled source only)
+
+Queue reads retain an expected snapshot. Every save compares it against the
+current durable queue and rejects stale writes, including clock regression;
+there is no queue schema migration or state reset. Runtime admission refreshes
+its snapshot after guard calls; capture rereads the queue and verifies the same
+policy/task/start/job/phase before preserving the latest clock. Resume and
+publication refresh their snapshots after their second guard as well.
+
+The warden checks both UTC and monotonic expiry after source copying and again
+immediately before launch, and rejects observed UTC rollback. No success record
+is written after expiry or a failed child exit.
+
+The former worker-writable `/tmp/warden-sealed` marker is ignored. Completion is
+an exact version/job/zero-exit/quiescence record created exclusively by root PID 1
+inside a separate root-owned mode-0700 64 KiB tmpfs at `/run/warden`. The operator
+reads that protected record and requires the exact current job token. Child
+UID/GID 65534 has no supplementary groups and cannot traverse the control directory
+or signal root PID 1. Only the trusted warden has CHOWN, SETUID, SETGID and KILL
+capabilities; all others are dropped. Ownership preparation finishes bottom-up
+before child launch. The child loses effective/permitted capabilities on UID drop;
+no-new-privileges prevents later privilege acquisition. Export runs as UID 65534
+after descendant reaping, retaining the existing descriptor-based output checks.
+
+This changes the proposed container trust boundary and invalidates any prior
+runtime qualification or policy digest. It installs nothing. Fresh independent
+source/security review and physical harmless-container qualification are required
+before any activation. The offline tests do not establish those properties on a
+real Docker host. NoProvider still denies execution.
+
+The concrete Runtime still does not receive a protected broker exhaustion event,
+emit Exhausted or call checkpoint on exhaustion. The supervisor's pause/resume
+examples use a fake engine; provisioning and testing that real handshake remain
+separate prerequisites. These corrections do not claim included-only enforcement,
+automatic task pickup or an operational autonomous coding loop.

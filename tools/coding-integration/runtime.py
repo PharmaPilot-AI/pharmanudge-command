@@ -36,17 +36,18 @@ def plan(p,job,token,expiry):
     argv=p['entrypoint']
     c.require(isinstance(argv,list) and 1<=len(argv)<=32 and all(isinstance(x,str) and 0<len(x)<=1024 and '\0' not in x for x in argv)
               and argv[0].startswith('/opt/'),'unqualified_entrypoint')
-    return ['create','--name=pn-h4-'+token,'--pull=never','--network=none','--read-only','--cap-drop=ALL',
-      '--security-opt=no-new-privileges=true','--user=65534:65534','--cgroupns=private','--memory=512m',
+    return ['create','--name=pn-h4-'+token,'--pull=never','--network=none','--read-only','--cap-drop=ALL','--cap-add=SETUID','--cap-add=SETGID','--cap-add=KILL','--cap-add=CHOWN',
+      '--security-opt=no-new-privileges=true','--user=0:0','--cgroupns=private','--memory=512m',
       '--memory-swap=512m','--cpus=1','--pids-limit=64','--stop-timeout=1','--label=pharmanudge.handoff=04',
       '--label=pharmanudge.job='+token,'--entrypoint=/usr/local/bin/python3',
       '--tmpfs=/work:rw,nosuid,nodev,size=128m,mode=1777','--tmpfs=/out:rw,noexec,nosuid,nodev,size=1m,mode=1777',
       '--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=8m,mode=1777',
+      '--tmpfs=/run/warden:rw,noexec,nosuid,nodev,size=64k,mode=0700',
       '--mount=type=bind,src='+str(job/'inputs')+',dst=/inputs,readonly',
       '--mount=type=bind,src='+str(c.HERE/'warden.py')+',dst=/warden.py,readonly',
       '--mount=type=bind,src='+str(c.HERE.parent/'development-handoff/handoff.py')+',dst=/export.py,readonly',
       '--env=HOME=/work','--env=PATH=/usr/local/bin:/usr/bin:/bin','--env=LANG=C.UTF-8',
-      p['image'],'-I','-S','-B','/warden.py',str(expiry)]
+      p['image'],'-I','-S','-B','/warden.py',str(expiry),token]
 
 
 class Runtime:
@@ -62,17 +63,18 @@ class Runtime:
     def verify_container(self,p,job,token):
         try:
             obj=self.owned(token);host=obj['HostConfig'];cfg=obj['Config']
-            c.require(obj['Image']==p['image'] and cfg['User']=='65534:65534' and cfg['Entrypoint']==['/usr/local/bin/python3']
+            c.require(obj['Image']==p['image'] and cfg['User']=='0:0' and cfg['Entrypoint']==['/usr/local/bin/python3']
               and host['ReadonlyRootfs'] is True and host['NetworkMode']=='none' and host['Memory']==536870912
               and host['MemorySwap']==536870912 and host['NanoCpus']==1000000000 and host['PidsLimit']==64
-              and host['CapDrop']==['ALL'] and not host.get('CapAdd') and not host['Privileged']
+              and host['CapDrop']==['ALL'] and sorted(host.get('CapAdd',[]))==['CHOWN','KILL','SETGID','SETUID'] and not host['Privileged']
               and host['PidMode'] in ('','private') and not host.get('Devices') and not host.get('DeviceRequests')
               and 'no-new-privileges=true' in host['SecurityOpt'],'runtime_configuration')
             mounts={m['Destination']:(m['Source'],m['RW']) for m in obj['Mounts']}
             c.require(mounts=={'/inputs':(str(job/'inputs'),False),'/warden.py':(str(c.HERE/'warden.py'),False),
               '/export.py':(str(c.HERE.parent/'development-handoff/handoff.py'),False)},'runtime_configuration')
             c.require(host['Tmpfs']=={'/work':'rw,nosuid,nodev,size=128m,mode=1777',
-              '/out':'rw,noexec,nosuid,nodev,size=1m,mode=1777','/tmp':'rw,noexec,nosuid,nodev,size=8m,mode=1777'},'runtime_configuration')
+              '/out':'rw,noexec,nosuid,nodev,size=1m,mode=1777','/tmp':'rw,noexec,nosuid,nodev,size=8m,mode=1777',
+              '/run/warden':'rw,noexec,nosuid,nodev,size=64k,mode=0700'},'runtime_configuration')
         except (KeyError,TypeError):raise c.Denied('runtime_configuration') from None
     def stop(self,token):
         self.owned(token);self.docker('rm','-f','pn-h4-'+token)
@@ -98,7 +100,7 @@ class Runtime:
             names=self.docker('image','inspect',p['image'],'--format','{{range .Config.Env}}{{println (index (split . "=") 0)}}{{end}}').decode().split()
             c.require(len(names)<=64 and all(re.fullmatch('[A-Za-z_][A-Za-z0-9_]*',n) for n in names),'image_env')
             args[1:1]=['--env='+n+'=' for n in names if n not in ('HOME','PATH','LANG')]
-            self.v.guard(p,self.clock(),revalidate)
+            state=self.v.guard(p,self.clock(),revalidate)
             state.update(phase='start-intent',starts=state['starts']+1,job=token);self.v.save(state)
             try:
                 self.docker(*args)
@@ -107,8 +109,8 @@ class Runtime:
                 self.docker('start','pn-h4-'+token)
                 while self.clock()<expiry:
                     self.v.guard(p,self.clock(),revalidate)
-                    code="from pathlib import Path; print(Path('/tmp/warden-sealed').exists())"
-                    if self.docker('exec','pn-h4-'+token,'/usr/local/bin/python3','-I','-S','-B','-c',code).strip()==b'True':break
+                    code="from pathlib import Path; p=Path('/run/warden/completion.json'); print(p.read_text() if p.is_file() and not p.is_symlink() else 'null')"
+                    if sealed(self.docker('exec','--user=0:0','pn-h4-'+token,'/usr/local/bin/python3','-I','-S','-B','-c',code),token):break
                     time.sleep(.25)
                 else:raise c.Denied('worker_deadline')
                 self.verify_container(p,job,token)
@@ -118,7 +120,7 @@ class Runtime:
                 # Export uses the identical audited descriptor traversal in the container.
                 code="import sys,json,base64,importlib.util,pathlib;spec=importlib.util.spec_from_file_location('export','/export.py');export=importlib.util.module_from_spec(spec);sys.modules['export']=export;spec.loader.exec_module(export);print(json.dumps({k:base64.b64encode(v).decode() for k,v in export.payloads(pathlib.Path('/out'),export.PATHS).items()}))"
                 import base64
-                data={k:base64.b64decode(v,validate=True) for k,v in c.s.decode(self.docker('exec','pn-h4-'+token,'/usr/local/bin/python3','-I','-S','-B','-c',code)).items()}
+                data={k:base64.b64decode(v,validate=True) for k,v in c.s.decode(self.docker('exec','--user=65534:65534','pn-h4-'+token,'/usr/local/bin/python3','-I','-S','-B','-c',code)).items()}
                 self.v.guard(p,self.clock(),revalidate)
                 return capture(self.v,p,data,state)
             except BaseException:
@@ -128,6 +130,11 @@ class Runtime:
                 # A create/start ambiguity stays held even when owned cleanup succeeds.
                 try:self.stop(token)
                 except c.Denied:pass
+
+
+def sealed(raw,token):
+    """Only root PID 1 writes this record after successful exit and descendant reaping."""
+    return c.s.decode(raw)=={'version':1,'job':token,'exit_code':0,'quiesced':True}
 
 
 def blob_manifest(data):
@@ -173,6 +180,9 @@ def restore_result(v,state,destination):
 
 
 def capture(v,p,data,state):
+    latest=v.read()
+    c.require(all(latest.get(k)==state.get(k) for k in ('policy','task','starts','job','phase')),'capture_state_drift')
+    state=latest
     c.require(set(data)==set(p['paths']),'export_paths')
     manifest=[];folder=v.root/'quarantine'/str(state['starts']);folder.mkdir(mode=0o700,parents=True)
     for name,raw in sorted(data.items()):

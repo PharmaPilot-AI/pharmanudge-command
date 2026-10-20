@@ -12,12 +12,12 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             plan=runtime.plan(p,Path(t),'0123456789abcdef',1100)
         joined=' '.join(plan)
-        for item in ('--network=none','--read-only','--cap-drop=ALL','--user=65534:65534','--pids-limit=64',
+        for item in ('--network=none','--read-only','--cap-drop=ALL','--user=0:0','--cap-add=CHOWN','--cap-add=KILL','mode=0700','--pids-limit=64',
                      '--memory=512m','--pull=never','size=128m','size=1m'):
             self.assertIn(item,joined)
         for item in ('docker.sock',',dst=/root','src=/root,','--privileged','--network=host'):
             self.assertNotIn(item,joined)
-        self.assertEqual(plan[-1],'1100')
+        self.assertEqual(plan[-2:],[str(1100),'0123456789abcdef'])
     def test_checkout_uses_exact_git_blobs_without_hooks_or_filters(self):
         import runtime
         import subprocess
@@ -34,7 +34,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_warden_cannot_enter_on_host_and_clock_rollback_cannot_extend_lease(self):
         import warden
-        with self.assertRaises(SystemExit):warden.main(9999999999)
+        with self.assertRaises(SystemExit):warden.main(9999999999,'0123456789abcdef')
         self.assertTrue(warden.expired(100,200,101,1))
         self.assertTrue(warden.expired(100,200,1,201))
         self.assertFalse(warden.expired(100,200,99,199))
