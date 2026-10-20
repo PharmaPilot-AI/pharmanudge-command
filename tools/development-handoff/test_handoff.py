@@ -363,6 +363,37 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(h.Denied):self.engine().initialize()
 
 class ExportTests(unittest.TestCase):
+    def test_fifo_at_either_allowed_path_is_rejected_without_blocking(self):
+        import os
+        import subprocess
+        import sys
+        script='''
+import os
+from pathlib import Path
+import sys
+from test_handoff import h,policy,PATHS
+root=Path(sys.argv[1]);source=root/'worker';source.mkdir()
+for path in PATHS:
+    target=source/path;target.parent.mkdir(parents=True,exist_ok=True)
+    if path==sys.argv[2]:os.mkfifo(target,0o600)
+    else:target.write_text('synthetic regular file')
+try:h.export_output(source,root/'quarantine',policy())
+except h.Denied as error:
+    assert str(error)=='output_file_type_or_limit'
+    assert not (root/'quarantine').exists()
+else:raise AssertionError('FIFO accepted by exporter')
+'''
+        for path in PATHS:
+            with self.subTest(path=path),tempfile.TemporaryDirectory() as d:
+                try:
+                    result=subprocess.run([sys.executable,'-B','-c',script,d,path],
+                        cwd=Path(__file__).parent,env={'HOME':d,'PATH':os.defpath,'LANG':'C.UTF-8'},
+                        capture_output=True,text=True,timeout=3)
+                except subprocess.TimeoutExpired:
+                    self.fail('FIFO blocked the exporter past the bounded regression timeout')
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(result.stdout,'')
+
     def test_aliases_binary_and_oversized_files_are_rejected(self):
         import os
         with tempfile.TemporaryDirectory() as d:

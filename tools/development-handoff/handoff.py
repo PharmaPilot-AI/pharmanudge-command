@@ -526,7 +526,8 @@ def payloads(root,paths,allow_manifest=False):
             try:
                 for part in PurePosixPath(path).parts[:-1]:
                     fd=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=current);fds.append(fd);current=fd
-                fd=os.open(PurePosixPath(path).name,os.O_RDONLY|os.O_NOFOLLOW,dir_fd=current);fds.append(fd)
+                # Reject FIFOs via fstat without waiting for a writer during open.
+                fd=os.open(PurePosixPath(path).name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=current);fds.append(fd)
                 before=os.fstat(fd)
                 require(stat.S_ISREG(before.st_mode) and before.st_nlink==1
                         and before.st_size<=128*1024 and not before.st_mode & 0o111,'output_file_type_or_limit')
