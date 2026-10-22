@@ -47,7 +47,9 @@ function load(file, overrides = {}, cache = new Map()) {
   const importer = (spec) => {
     if (spec in overrides) return overrides[spec];
     if (spec === "zod") return require("zod");
-    if (spec === "./stock-receipt-schema") return load("stock-receipt-schema", overrides, cache);
+    if (spec === "./stock-receipt-schema" || spec === "./catalogue-pages") {
+      return load(spec.slice(2), overrides, cache);
+    }
     assert.fail(`Unexpected test dependency: ${spec}`);
   };
   runInNewContext(outputText, { module, exports: module.exports, require: importer });
