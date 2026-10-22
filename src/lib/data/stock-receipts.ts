@@ -1,17 +1,24 @@
 import "@tanstack/react-start/server-only";
+import { CATALOGUE_PAGE_SIZE, loadCatalogueRows } from "./catalogue-pages";
 import { resolveSessionUser } from "../auth/context";
 import { listProducts } from "./products";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
-import { stockReceiptSchema, type StockReceiptInput } from "./stock-receipt-schema";
+import { receiptSubmissionSchema, type ReceiptSubmission } from "./stock-receipt-schema";
 
-export async function confirmStockReceipt(input: StockReceiptInput): Promise<string> {
-  const receipt = stockReceiptSchema.parse(input);
+export async function confirmStockReceipt(input: ReceiptSubmission): Promise<string> {
+  const submission = receiptSubmissionSchema.parse(input);
+  const receipt = submission.request;
   const session = await resolveSessionUser();
   if (!session) throw new Error("Please sign in to receive stock.");
 
   const client = createServerSupabaseClient(session.accessToken);
   const context = await requirePharmacyContext(client);
+  if (submission.pharmacyId !== context.pharmacyId || submission.userId !== context.userId) {
+    throw new Error(
+      "This saved receipt belongs to a different user or pharmacy. Return to its original context to reconcile it.",
+    );
+  }
   if (context.role !== "owner" && context.role !== "pharmacist") {
     throw new Error("Only an active owner or pharmacist can receive stock.");
   }
@@ -64,27 +71,35 @@ export async function getStockReceiptCatalogue() {
     throw new Error("Only an active owner or pharmacist can receive stock.");
   }
 
-  const [products, unitsResult] = await Promise.all([
+  const [products, unitRows] = await Promise.all([
     listProducts(client),
-    client
-      .from("packaging_units")
-      .select("id, product_id, label, base_units_per_unit, products!inner(pharmacy_id, is_active)")
-      .eq("is_active", true)
-      .eq("products.pharmacy_id", context.pharmacyId)
-      .eq("products.is_active", true)
-      .order("label"),
+    loadCatalogueRows(
+      (afterId) => {
+        let query = client
+          .from("packaging_units")
+          .select(
+            "id, product_id, label, base_units_per_unit, products!inner(pharmacy_id, is_active)",
+          )
+          .eq("is_active", true)
+          .eq("products.pharmacy_id", context.pharmacyId)
+          .eq("products.is_active", true)
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
+        if (afterId !== null) query = query.gt("id", afterId);
+        return query;
+      },
+      (row) => row.id,
+    ),
   ]);
 
-  if (unitsResult.error) {
-    throw new Error("Unable to load packaging units. Please try again.");
-  }
+  unitRows.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 
-  const units = (unitsResult.data ?? []).map((unit) => ({
+  const units = unitRows.map((unit) => ({
     id: unit.id,
     product_id: unit.product_id,
     label: unit.label,
     base_units_per_unit: unit.base_units_per_unit,
   }));
 
-  return { products, units };
+  return { products, units, pharmacyId: context.pharmacyId, userId: context.userId };
 }

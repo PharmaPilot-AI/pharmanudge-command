@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { CredentialForm } from "@/components/CredentialForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -105,7 +106,7 @@ function ResetPasswordForm({ tokenHash }: { tokenHash: string }) {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+            <CredentialForm onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
               <FormField
                 control={form.control}
                 name="newPassword"
@@ -135,7 +136,7 @@ function ResetPasswordForm({ tokenHash }: { tokenHash: string }) {
               <Button type="submit" disabled={isSubmitting} className="mt-2">
                 {isSubmitting ? "Updating…" : "Update password"}
               </Button>
-            </form>
+            </CredentialForm>
           </Form>
         </CardContent>
       </Card>

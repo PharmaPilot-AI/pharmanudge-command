@@ -1,4 +1,5 @@
 import "@tanstack/react-start/server-only";
+import { CATALOGUE_PAGE_SIZE, loadCatalogueRows } from "./catalogue-pages";
 import { resolveSessionUser } from "../auth/context";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
@@ -20,43 +21,79 @@ async function resolvePosContext() {
 export async function getPosCatalogue() {
   const { client, context } = await resolvePosContext();
 
-  const [productsResult, unitsResult, servicesResult, inventoryResult] = await Promise.all([
-    client
-      .from("products")
-      .select("id, name, generic_name, category, barcode, base_unit_label, shelf_location")
-      .eq("pharmacy_id", context.pharmacyId)
-      .eq("is_active", true)
-      .order("name"),
-    client
-      .from("packaging_units")
-      .select(
-        "id, product_id, label, base_units_per_unit, price, products!inner(pharmacy_id, is_active)",
-      )
-      .eq("is_active", true)
-      .eq("products.pharmacy_id", context.pharmacyId)
-      .eq("products.is_active", true)
-      .order("base_units_per_unit")
-      .order("label"),
-    client
-      .from("services")
-      .select("id, name, price")
-      .eq("pharmacy_id", context.pharmacyId)
-      .eq("is_active", true)
-      .order("name"),
-    client.rpc("list_pharmacy_inventory", {
-      target_pharmacy_id: context.pharmacyId,
-    }),
+  const [productRows, unitRows, serviceRows, inventoryRows] = await Promise.all([
+    loadCatalogueRows(
+      (afterId) => {
+        let query = client
+          .from("products")
+          .select("id, name, generic_name, category, barcode, base_unit_label, shelf_location")
+          .eq("pharmacy_id", context.pharmacyId)
+          .eq("is_active", true)
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
+        if (afterId !== null) query = query.gt("id", afterId);
+        return query;
+      },
+      (row) => row.id,
+    ),
+    loadCatalogueRows(
+      (afterId) => {
+        let query = client
+          .from("packaging_units")
+          .select(
+            "id, product_id, label, base_units_per_unit, price, products!inner(pharmacy_id, is_active)",
+          )
+          .eq("is_active", true)
+          .eq("products.pharmacy_id", context.pharmacyId)
+          .eq("products.is_active", true)
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
+        if (afterId !== null) query = query.gt("id", afterId);
+        return query;
+      },
+      (row) => row.id,
+    ),
+    loadCatalogueRows(
+      (afterId) => {
+        let query = client
+          .from("services")
+          .select("id, name, price")
+          .eq("pharmacy_id", context.pharmacyId)
+          .eq("is_active", true)
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
+        if (afterId !== null) query = query.gt("id", afterId);
+        return query;
+      },
+      (row) => row.id,
+    ),
+    loadCatalogueRows(
+      (afterId) => {
+        let query = client
+          .rpc("list_pharmacy_inventory", {
+            target_pharmacy_id: context.pharmacyId,
+          })
+          .order("product_id")
+          .limit(CATALOGUE_PAGE_SIZE);
+        if (afterId !== null) query = query.gt("product_id", afterId);
+        return query;
+      },
+      (row) => row.product_id,
+    ),
   ]);
 
-  if (productsResult.error || unitsResult.error || servicesResult.error || inventoryResult.error) {
-    throw new Error("Unable to load the POS catalogue. Please try again.");
-  }
-
-  const available = new Map(
-    (inventoryResult.data ?? []).map((row) => [row.product_id, row.available_quantity]),
+  productRows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  serviceRows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  unitRows.sort(
+    (a, b) =>
+      a.base_units_per_unit - b.base_units_per_unit ||
+      a.label.localeCompare(b.label) ||
+      a.id.localeCompare(b.id),
   );
 
-  const units = (unitsResult.data ?? []).map((unit) => ({
+  const available = new Map(inventoryRows.map((row) => [row.product_id, row.available_quantity]));
+
+  const units = unitRows.map((unit) => ({
     id: unit.id,
     product_id: unit.product_id,
     label: unit.label,
@@ -64,13 +101,26 @@ export async function getPosCatalogue() {
     price: unit.price,
   }));
 
-  const products = (productsResult.data ?? []).map((product) => ({
-    ...product,
-    available_quantity: available.get(product.id) ?? "0",
-    units: units.filter((unit) => unit.product_id === product.id),
-  }));
+  const unitsByProduct = new Map<string, typeof units>();
+  for (const unit of units) {
+    const group = unitsByProduct.get(unit.product_id);
+    if (group) group.push(unit);
+    else unitsByProduct.set(unit.product_id, [unit]);
+  }
 
-  return { products, services: servicesResult.data ?? [] };
+  const products = productRows.map((product) => {
+    const quantity = available.get(product.id);
+    if (quantity === undefined) {
+      throw new Error("Inventory changed while loading the catalogue. Please refresh.");
+    }
+    return {
+      ...product,
+      available_quantity: quantity,
+      units: unitsByProduct.get(product.id) ?? [],
+    };
+  });
+
+  return { products, services: serviceRows };
 }
 
 /** The database verifies catalogue prices and deducts stock atomically. */

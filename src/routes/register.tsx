@@ -2,6 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
+import { CredentialForm } from "@/components/CredentialForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -97,7 +98,7 @@ function RegisterPage() {
             </>
           ) : (
             <>
-              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <CredentialForm onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
                   <label htmlFor="register-email" className="text-sm font-medium">
                     Email
@@ -151,7 +152,7 @@ function RegisterPage() {
                 <Button type="submit" disabled={busy}>
                   {busy ? "Creating account…" : "Create account"}
                 </Button>
-              </form>
+              </CredentialForm>
               <Link
                 to="/login"
                 search={{ redirect: undefined, invitation }}
