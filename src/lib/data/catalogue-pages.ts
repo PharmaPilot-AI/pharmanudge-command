@@ -17,12 +17,19 @@ export async function loadCatalogueRows<T>(
       throw new Error("Unable to load the complete catalogue. Please refresh and try again.");
     }
     if (result.data.length === 0) return rows;
-    if (result.data.length > CATALOGUE_PAGE_SIZE || rows.length + result.data.length > MAX_CATALOGUE_ROWS) {
+    if (
+      result.data.length > CATALOGUE_PAGE_SIZE ||
+      rows.length + result.data.length > MAX_CATALOGUE_ROWS
+    ) {
       throw new Error("The catalogue exceeds the supported loading limit.");
     }
     for (const row of result.data) {
       const id = rowId(row);
-      if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) || (afterId !== null && id <= afterId)) {
+      if (
+        typeof id !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ||
+        (afterId !== null && id <= afterId)
+      ) {
         throw new Error("The catalogue returned inconsistent ordering. Please refresh.");
       }
       rows.push(row);

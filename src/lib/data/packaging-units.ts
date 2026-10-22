@@ -41,7 +41,8 @@ export async function listPackagingUnitsForProduct(
         .eq("product_id", productId)
         .eq("products.pharmacy_id", pharmacyId)
         .eq("is_active", true)
-        .order("id").limit(CATALOGUE_PAGE_SIZE);
+        .order("id")
+        .limit(CATALOGUE_PAGE_SIZE);
       if (afterId !== null) query = query.gt("id", afterId);
       return query;
     },

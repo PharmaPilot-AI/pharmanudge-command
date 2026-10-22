@@ -29,7 +29,8 @@ export async function getPosCatalogue() {
           .select("id, name, generic_name, category, barcode, base_unit_label, shelf_location")
           .eq("pharmacy_id", context.pharmacyId)
           .eq("is_active", true)
-          .order("id").limit(CATALOGUE_PAGE_SIZE);
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
         if (afterId !== null) query = query.gt("id", afterId);
         return query;
       },
@@ -40,12 +41,13 @@ export async function getPosCatalogue() {
         let query = client
           .from("packaging_units")
           .select(
-          "id, product_id, label, base_units_per_unit, price, products!inner(pharmacy_id, is_active)",
+            "id, product_id, label, base_units_per_unit, price, products!inner(pharmacy_id, is_active)",
           )
           .eq("is_active", true)
           .eq("products.pharmacy_id", context.pharmacyId)
           .eq("products.is_active", true)
-          .order("id").limit(CATALOGUE_PAGE_SIZE);
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
         if (afterId !== null) query = query.gt("id", afterId);
         return query;
       },
@@ -58,7 +60,8 @@ export async function getPosCatalogue() {
           .select("id, name, price")
           .eq("pharmacy_id", context.pharmacyId)
           .eq("is_active", true)
-          .order("id").limit(CATALOGUE_PAGE_SIZE);
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
         if (afterId !== null) query = query.gt("id", afterId);
         return query;
       },
@@ -66,9 +69,12 @@ export async function getPosCatalogue() {
     ),
     loadCatalogueRows(
       (afterId) => {
-        let query = client.rpc("list_pharmacy_inventory", {
-          target_pharmacy_id: context.pharmacyId,
-          }).order("product_id").limit(CATALOGUE_PAGE_SIZE);
+        let query = client
+          .rpc("list_pharmacy_inventory", {
+            target_pharmacy_id: context.pharmacyId,
+          })
+          .order("product_id")
+          .limit(CATALOGUE_PAGE_SIZE);
         if (afterId !== null) query = query.gt("product_id", afterId);
         return query;
       },
@@ -78,11 +84,14 @@ export async function getPosCatalogue() {
 
   productRows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   serviceRows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-  unitRows.sort((a, b) => a.base_units_per_unit - b.base_units_per_unit || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
-
-  const available = new Map(
-    inventoryRows.map((row) => [row.product_id, row.available_quantity]),
+  unitRows.sort(
+    (a, b) =>
+      a.base_units_per_unit - b.base_units_per_unit ||
+      a.label.localeCompare(b.label) ||
+      a.id.localeCompare(b.id),
   );
+
+  const available = new Map(inventoryRows.map((row) => [row.product_id, row.available_quantity]));
 
   const units = unitRows.map((unit) => ({
     id: unit.id,

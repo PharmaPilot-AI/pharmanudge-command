@@ -71,11 +71,14 @@ export async function getStockReceiptCatalogue() {
       (afterId) => {
         let query = client
           .from("packaging_units")
-          .select("id, product_id, label, base_units_per_unit, products!inner(pharmacy_id, is_active)")
+          .select(
+            "id, product_id, label, base_units_per_unit, products!inner(pharmacy_id, is_active)",
+          )
           .eq("is_active", true)
           .eq("products.pharmacy_id", context.pharmacyId)
           .eq("products.is_active", true)
-          .order("id").limit(CATALOGUE_PAGE_SIZE);
+          .order("id")
+          .limit(CATALOGUE_PAGE_SIZE);
         if (afterId !== null) query = query.gt("id", afterId);
         return query;
       },
