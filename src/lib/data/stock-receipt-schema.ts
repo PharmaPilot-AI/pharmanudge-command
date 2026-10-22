@@ -32,3 +32,16 @@ export const stockReceiptSchema = z
   .strict();
 
 export type StockReceiptInput = z.infer<typeof stockReceiptSchema>;
+
+/** Identity pins are compared to server-resolved context, never used as authority. */
+export const receiptSubmissionSchema = z
+  .object({
+    version: z.literal(1),
+    pharmacyId: z.string().uuid(),
+    userId: z.string().uuid(),
+    request: stockReceiptSchema,
+  })
+  .strict();
+
+export type ReceiptSubmission = z.infer<typeof receiptSubmissionSchema>;
+export type ReceiptDraft = Omit<StockReceiptInput, "operation_id">;

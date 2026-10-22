@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { PackageCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -16,7 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { confirmStockReceiptMutation, stockReceiptCatalogueQuery } from "@/lib/data/validation";
-import { stockReceiptSchema, type StockReceiptInput } from "@/lib/data/stock-receipt-schema";
+import {
+  stockReceiptSchema,
+  type ReceiptSubmission,
+  type StockReceiptInput,
+} from "@/lib/data/stock-receipt-schema";
+import { ReceiptRecovery } from "@/lib/data/pending-stock-receipt";
 
 export const Route = createFileRoute("/receive-stock")({
   beforeLoad: ({ context }) => {
@@ -66,11 +71,27 @@ function lagosToday(): string {
 }
 
 function ReceiveStock() {
+  const { pharmacyContext } = Route.useRouteContext();
+  if (!pharmacyContext) return <p role="alert">An authenticated pharmacy context is required.</p>;
+  return (
+    <ReceiptForm
+      key={`${pharmacyContext.pharmacyId}:${pharmacyContext.userId}`}
+      pharmacyId={pharmacyContext.pharmacyId}
+      userId={pharmacyContext.userId}
+    />
+  );
+}
+
+function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: string }) {
   const { products, units } = Route.useLoaderData();
   const router = useRouter();
   const saveReceipt = useServerFn(confirmStockReceiptMutation);
-  const inFlight = useRef(false);
-  const operationId = useRef<string | null>(null);
+  const [recovery] = useState(
+    () => new ReceiptRecovery({ pharmacyId, userId }, () => sessionStorage),
+  );
+  const [pending, setPending] = useState<ReceiptSubmission | null>(null);
+  const [ready, setReady] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [supplier, setSupplier] = useState("");
   const [invoice, setInvoice] = useState("");
@@ -84,13 +105,37 @@ function ReceiveStock() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    try {
+      setPending(recovery.recover());
+      setReady(recovery.ready);
+    } catch {
+      setReady(false);
+      setError("Saved receipt recovery is blocked. Recheck storage before continuing.");
+    }
+  }, [recovery]);
+
+  const locked = !ready || busy || pending !== null || refreshRequired;
+  const recheckRecovery = () => {
+    try {
+      setPending(recovery.recover());
+      setReady(recovery.ready);
+      setError(null);
+    } catch {
+      setReady(false);
+      setError(
+        "Saved receipt recovery is blocked. Resolve storage availability or changed data before continuing.",
+      );
+    }
+  };
+
   const product = products.find((entry) => entry.id === productId);
   const productUnits = units.filter((entry) => entry.product_id === productId);
   const unit = productUnits.find((entry) => entry.id === unitId) ?? productUnits[0];
 
   const addEntry = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (inFlight.current) return;
+    if (locked || recovery.busy || recovery.pending) return;
     if (!product || !unit) {
       toast.error("Choose a product with an active packaging unit.");
       return;
@@ -148,44 +193,70 @@ function ReceiveStock() {
     setError(null);
   };
 
-  const confirmReceipt = async () => {
-    if (inFlight.current || review.length === 0) return;
-    operationId.current ??= crypto.randomUUID();
-
-    const parsed = stockReceiptSchema.safeParse({
-      operation_id: operationId.current,
-      supplier_name: supplier,
-      invoice_reference: invoice,
-      items: review.map((entry) => entry.item),
-    });
-    if (!parsed.success) {
-      toast.error("Enter a supplier name and check the delivery details.");
-      return;
+  const refreshCatalogue = async () => {
+    setRefreshRequired(true);
+    try {
+      await router.invalidate();
+      setRefreshRequired(false);
+    } catch {
+      toast.warning(
+        "Receipt confirmed, but refresh failed. Refresh before starting another receipt.",
+      );
     }
+  };
 
-    inFlight.current = true;
+  const confirmReceipt = async () => {
+    if (recovery.busy || !ready) return;
+    if (!recovery.pending && (refreshRequired || review.length === 0)) return;
     setBusy(true);
     setError(null);
-
     try {
-      const id = await saveReceipt({ data: parsed.data });
+      const request = recovery.pending
+        ? undefined
+        : {
+            supplier_name: supplier,
+            invoice_reference: invoice,
+            items: review.map((entry) => entry.item),
+          };
+      if (request && !stockReceiptSchema.omit({ operation_id: true }).safeParse(request).success) {
+        toast.error("Enter a supplier name and check the delivery details.");
+        return;
+      }
+      const id = await recovery.submit(request, (data) => saveReceipt({ data }));
       setSavedId(id);
+      toast.success("Stock receipt confirmed.");
+      await refreshCatalogue();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Receipt outcome is uncertain. Retry the saved submission.",
+      );
+    } finally {
+      setPending(recovery.pending);
+      setReady(recovery.ready);
+      setBusy(false);
+    }
+  };
+
+  const startAnother = () => {
+    if (busy || recovery.busy || refreshRequired) return;
+    try {
+      recovery.startAnother();
       setReview([]);
       setSupplier("");
       setInvoice("");
-      operationId.current = null;
-      toast.success("Stock receipt saved.");
-
-      try {
-        await router.invalidate();
-      } catch {
-        toast.warning("Receipt saved. The catalogue could not be refreshed.");
-      }
+      setQuantity("");
+      setCost("");
+      setBatch("");
+      setExpiry("");
+      setSavedId(null);
+      setError(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to confirm stock receipt.");
+      setError(caught instanceof Error ? caught.message : "Cannot clear receipt recovery.");
     } finally {
-      inFlight.current = false;
-      setBusy(false);
+      setPending(recovery.pending);
+      setReady(recovery.ready);
     }
   };
 
@@ -211,6 +282,68 @@ function ReceiveStock() {
         </div>
       )}
 
+      {error && (
+        <div role="alert" className="rounded-xl border p-3.5 text-sm text-destructive">
+          <p>{error}</p>
+          <p>
+            Do not re-enter an uncertain delivery as a new receipt. Its saved request is retained.
+          </p>
+        </div>
+      )}
+      {!ready && (
+        <Button type="button" disabled={busy} onClick={recheckRecovery}>
+          Recheck saved receipt storage
+        </Button>
+      )}
+      {pending && (
+        <section
+          aria-label="Saved receipt recovery"
+          className="flex flex-col gap-3 rounded-xl border p-4"
+        >
+          <p>
+            {savedId
+              ? "This receipt is confirmed. Acknowledge it before starting another delivery."
+              : "A saved delivery needs confirmation. Retry this exact submission before creating another receipt."}
+          </p>
+          <p className="break-all">Submission reference: {pending.request.operation_id}</p>
+          <p>
+            Supplier: {pending.request.supplier_name} · Invoice:{" "}
+            {pending.request.invoice_reference || "None"}
+          </p>
+          <ul>
+            {pending.request.items.map((item, index) => (
+              <li key={index} className="break-words text-sm">
+                {products.find((entry) => entry.id === item.product_id)?.name ?? item.product_id}
+                {" · "}
+                {item.quantity} ×{" "}
+                {units.find((entry) => entry.id === item.packaging_unit_id)?.label ??
+                  item.packaging_unit_id}
+                {" · "}Batch {item.batch_number} · Expires {item.expiry_date}
+                {" · "}Purchase total: {receiptMoney(item.quantity * item.cost_per_packaging_unit)}
+              </li>
+            ))}
+          </ul>
+          {savedId ? (
+            <Button
+              type="button"
+              disabled={busy || !ready || refreshRequired}
+              onClick={startAnother}
+            >
+              Start another receipt
+            </Button>
+          ) : (
+            <Button type="button" disabled={busy || !ready} onClick={() => void confirmReceipt()}>
+              {busy ? "Confirming saved receipt…" : "Retry saved submission"}
+            </Button>
+          )}
+        </section>
+      )}
+      {refreshRequired && (
+        <Button type="button" disabled={busy} onClick={() => void refreshCatalogue()}>
+          Refresh receiving catalogue
+        </Button>
+      )}
+
       {products.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col gap-3 p-4">
@@ -233,7 +366,7 @@ function ReceiveStock() {
                   id="rs-supplier"
                   value={supplier}
                   maxLength={200}
-                  disabled={busy}
+                  disabled={locked}
                   onChange={(event) => setSupplier(event.target.value)}
                 />
               </div>
@@ -243,7 +376,7 @@ function ReceiveStock() {
                   id="rs-invoice"
                   value={invoice}
                   maxLength={100}
-                  disabled={busy}
+                  disabled={locked}
                   onChange={(event) => setInvoice(event.target.value)}
                 />
               </div>
@@ -260,7 +393,7 @@ function ReceiveStock() {
                   <Label htmlFor="rs-product">Product</Label>
                   <Select
                     value={productId}
-                    disabled={busy}
+                    disabled={locked}
                     onValueChange={(id) => {
                       setProductId(id);
                       setUnitId("");
@@ -284,7 +417,7 @@ function ReceiveStock() {
                   <Select
                     value={unit?.id ?? ""}
                     onValueChange={setUnitId}
-                    disabled={busy || productUnits.length === 0}
+                    disabled={locked || productUnits.length === 0}
                   >
                     <SelectTrigger id="rs-unit">
                       <SelectValue placeholder="Choose a unit" />
@@ -312,7 +445,7 @@ function ReceiveStock() {
                     min="0.000001"
                     step="0.000001"
                     required
-                    disabled={busy}
+                    disabled={locked}
                     value={quantity}
                     onChange={(event) => setQuantity(event.target.value)}
                   />
@@ -325,7 +458,7 @@ function ReceiveStock() {
                     min="0"
                     step="0.000001"
                     required
-                    disabled={busy}
+                    disabled={locked}
                     value={cost}
                     onChange={(event) => setCost(event.target.value)}
                   />
@@ -336,7 +469,7 @@ function ReceiveStock() {
                     id="rs-batch"
                     required
                     maxLength={100}
-                    disabled={busy}
+                    disabled={locked}
                     value={batch}
                     onChange={(event) => setBatch(event.target.value)}
                   />
@@ -347,7 +480,7 @@ function ReceiveStock() {
                     id="rs-expiry"
                     type="date"
                     required
-                    disabled={busy}
+                    disabled={locked}
                     value={expiry}
                     onChange={(event) => setExpiry(event.target.value)}
                   />
@@ -355,7 +488,7 @@ function ReceiveStock() {
                 <Button
                   type="submit"
                   className="self-end"
-                  disabled={busy || !unit || review.length >= 100}
+                  disabled={locked || !unit || review.length >= 100}
                 >
                   Add to delivery
                 </Button>
@@ -395,7 +528,7 @@ function ReceiveStock() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={busy}
+                        disabled={locked}
                         aria-label={`Remove ${entry.productName} batch ${entry.item.batch_number}`}
                         onClick={() =>
                           setReview((current) => current.filter((item) => item.key !== entry.key))
@@ -411,19 +544,10 @@ function ReceiveStock() {
                   previews; the saved receipt uses the current catalogue conversion and database
                   rounding.
                 </p>
-                {error && (
-                  <div role="alert" className="rounded-xl border p-3.5 text-sm text-destructive">
-                    <p>{error}</p>
-                    <p className="mt-1">
-                      If the connection failed, retry with the same delivery details before
-                      refreshing this page.
-                    </p>
-                  </div>
-                )}
                 <Button
                   type="button"
                   className="self-start"
-                  disabled={busy}
+                  disabled={locked}
                   onClick={() => void confirmReceipt()}
                 >
                   {busy
