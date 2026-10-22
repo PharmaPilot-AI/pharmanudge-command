@@ -18,7 +18,7 @@ async function modules(client, role = 'owner', session = { accessToken: 'dummy' 
       if (spec.includes('auth/context')) exports = { resolveSessionUser: async () => session };
       else if (spec.includes('pharmacy-context')) exports = { requirePharmacyContext: async () => ({ pharmacyId: 'tenant-a', role }) };
       else if (spec.includes('supabase/server')) exports = { createServerSupabaseClient: () => client };
-      else if (spec.includes('-schema')) exports = { saleSchema: {}, stockReceiptSchema: {}, expenseSchema: {} };
+      else if (spec.includes('-schema')) exports = { saleSchema: {}, stockReceiptSchema: {}, expenseSchema: {}, receiptSubmissionSchema: {} };
       else assert.equal(spec, '@tanstack/react-start/server-only');
       const s = new SyntheticModule(Object.keys(exports), function () {
         for (const [k, v] of Object.entries(exports)) this.setExport(k, v);
