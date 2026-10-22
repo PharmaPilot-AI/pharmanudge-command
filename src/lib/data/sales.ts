@@ -101,6 +101,13 @@ export async function getPosCatalogue() {
     price: unit.price,
   }));
 
+  const unitsByProduct = new Map<string, typeof units>();
+  for (const unit of units) {
+    const group = unitsByProduct.get(unit.product_id);
+    if (group) group.push(unit);
+    else unitsByProduct.set(unit.product_id, [unit]);
+  }
+
   const products = productRows.map((product) => {
     const quantity = available.get(product.id);
     if (quantity === undefined) {
@@ -109,7 +116,7 @@ export async function getPosCatalogue() {
     return {
       ...product,
       available_quantity: quantity,
-      units: units.filter((unit) => unit.product_id === product.id),
+      units: unitsByProduct.get(product.id) ?? [],
     };
   });
 

@@ -85,6 +85,26 @@ test('POS loads products, units, services and inventory beyond cap without cost 
   }
 });
 
+test('POS joining work stays bounded for a large complete catalogue', async () => {
+  const c = fakeClient(); const load = await modules(c); const { getPosCatalogue } = await load('sales');
+  const originalFilter = Array.prototype.filter;
+  let unitVisits = 0;
+  // Count real row visits, not wall-clock time. Restore the process-local instrument in finally.
+  Array.prototype.filter = function (predicate, thisArg) {
+    const units = this.length > 0 && this[0] && typeof this[0] === 'object' && 'product_id' in this[0] && 'label' in this[0];
+    if (!units) return originalFilter.call(this, predicate, thisArg);
+    return originalFilter.call(this, (row, index, array) => {
+      unitVisits++;
+      return predicate.call(thisArg, row, index, array);
+    });
+  };
+  let result;
+  try { result = await getPosCatalogue(); } finally { Array.prototype.filter = originalFilter; }
+  assert.equal(result.products.length, 1205);
+  assert.ok(result.products.every(product => product.units.length === 1 && product.units[0].product_id === product.id));
+  assert.ok(unitVisits < 100_000, `Packaging-row visits exceeded the linear fixture budget: ${unitVisits}`);
+});
+
 test('receiving loads products and units beyond cap and strips join metadata', async () => {
   const c = fakeClient(); const load = await modules(c); const { getStockReceiptCatalogue } = await load('stock-receipts');
   const result = await getStockReceiptCatalogue();
