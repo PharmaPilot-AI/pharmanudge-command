@@ -1,6 +1,6 @@
-import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PackageCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -22,6 +22,12 @@ import {
   type StockReceiptInput,
 } from "@/lib/data/stock-receipt-schema";
 import { ReceiptRecovery } from "@/lib/data/pending-stock-receipt";
+import {
+  readReceiptCatalogue,
+  receiptCatalogueForScope,
+  unavailableReceiptCatalogue,
+  RECEIPT_CATALOGUE_UNAVAILABLE,
+} from "@/lib/data/receipt-catalogue";
 
 export const Route = createFileRoute("/receive-stock")({
   beforeLoad: ({ context }) => {
@@ -30,7 +36,16 @@ export const Route = createFileRoute("/receive-stock")({
       throw redirect({ to: role === "accountant" ? "/reports" : "/pos" });
     }
   },
-  loader: () => stockReceiptCatalogueQuery(),
+  loader: ({ context }) => {
+    const membership = context.pharmacyContext;
+    if (!membership || (membership.role !== "owner" && membership.role !== "pharmacist")) {
+      throw redirect({ to: membership?.role === "accountant" ? "/reports" : "/pos" });
+    }
+    return readReceiptCatalogue(
+      { pharmacyId: membership.pharmacyId, userId: membership.userId },
+      () => stockReceiptCatalogueQuery(),
+    );
+  },
   head: () => ({
     meta: [
       { title: "Receive Stock — PharmaNudge" },
@@ -72,7 +87,12 @@ function lagosToday(): string {
 
 function ReceiveStock() {
   const { pharmacyContext } = Route.useRouteContext();
-  if (!pharmacyContext) return <p role="alert">An authenticated pharmacy context is required.</p>;
+  if (
+    !pharmacyContext ||
+    (pharmacyContext.role !== "owner" && pharmacyContext.role !== "pharmacist")
+  ) {
+    return <p role="alert">An authorized pharmacy context is required.</p>;
+  }
   return (
     <ReceiptForm
       key={`${pharmacyContext.pharmacyId}:${pharmacyContext.userId}`}
@@ -83,15 +103,33 @@ function ReceiveStock() {
 }
 
 function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: string }) {
-  const { products, units } = Route.useLoaderData();
-  const router = useRouter();
+  const initialCatalogue = Route.useLoaderData();
+  const [catalogue, setCatalogue] = useState(() =>
+    receiptCatalogueForScope(initialCatalogue, { pharmacyId, userId }),
+  );
+  const [lastLoaderCatalogue, setLastLoaderCatalogue] = useState(initialCatalogue);
+  const loaderUnavailable =
+    lastLoaderCatalogue !== initialCatalogue &&
+    initialCatalogue.pharmacyId === pharmacyId &&
+    initialCatalogue.userId === userId &&
+    receiptCatalogueForScope(initialCatalogue, { pharmacyId, userId }).status !== "available";
+  const visibleCatalogue = loaderUnavailable
+    ? unavailableReceiptCatalogue({ pharmacyId, userId })
+    : catalogue;
+  const catalogueRef = useRef(catalogue);
+  const refreshEpoch = useRef({ generation: 0, active: true });
+  const localReadOwnsAvailability = useRef(catalogue.status !== "available");
+  const [refreshing, setRefreshing] = useState(false);
+  const { products, units } =
+    visibleCatalogue.status === "available" ? visibleCatalogue.data : { products: [], units: [] };
+  const fetchCatalogue = useServerFn(stockReceiptCatalogueQuery);
   const saveReceipt = useServerFn(confirmStockReceiptMutation);
   const [recovery] = useState(
     () => new ReceiptRecovery({ pharmacyId, userId }, () => sessionStorage),
   );
   const [pending, setPending] = useState<ReceiptSubmission | null>(null);
   const [ready, setReady] = useState(false);
-  const [refreshRequired, setRefreshRequired] = useState(false);
+  const [refreshRequired, setRefreshRequired] = useState(catalogue.status !== "available");
   const [busy, setBusy] = useState(false);
   const [supplier, setSupplier] = useState("");
   const [invoice, setInvoice] = useState("");
@@ -115,7 +153,43 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
     }
   }, [recovery]);
 
-  const locked = !ready || busy || pending !== null || refreshRequired;
+  useEffect(() => {
+    const epoch = refreshEpoch.current;
+    epoch.active = true;
+    epoch.generation++;
+    return () => {
+      epoch.active = false;
+      epoch.generation++;
+    };
+  }, []);
+
+  useEffect(() => {
+    setLastLoaderCatalogue(initialCatalogue);
+    if (initialCatalogue.pharmacyId !== pharmacyId || initialCatalogue.userId !== userId) return;
+    const next = receiptCatalogueForScope(initialCatalogue, { pharmacyId, userId });
+    // Cached loader success must never release a failed/local refresh lock.
+    if (next.status === "available" && localReadOwnsAvailability.current) return;
+    if (next.status === "unavailable") {
+      localReadOwnsAvailability.current = true;
+      refreshEpoch.current.generation++;
+      setRefreshing(false);
+    }
+    catalogueRef.current = next;
+    setCatalogue(next);
+    setRefreshRequired(next.status !== "available");
+  }, [initialCatalogue, pharmacyId, userId]);
+
+  const liveCatalogueAvailable = () =>
+    !loaderUnavailable &&
+    refreshEpoch.current.active &&
+    catalogueRef.current.status === "available";
+  const locked =
+    !ready ||
+    busy ||
+    pending !== null ||
+    refreshRequired ||
+    refreshing ||
+    visibleCatalogue.status !== "available";
   const recheckRecovery = () => {
     try {
       setPending(recovery.recover());
@@ -135,7 +209,7 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
 
   const addEntry = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (locked || recovery.busy || recovery.pending) return;
+    if (locked || !liveCatalogueAvailable() || recovery.busy || recovery.pending) return;
     if (!product || !unit) {
       toast.error("Choose a product with an active packaging unit.");
       return;
@@ -194,20 +268,38 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
   };
 
   const refreshCatalogue = async () => {
+    const epoch = refreshEpoch.current;
+    if (!epoch.active) return;
+    const generation = ++epoch.generation;
+    localReadOwnsAvailability.current = true;
+    const unavailable = unavailableReceiptCatalogue({ pharmacyId, userId });
+    catalogueRef.current = unavailable;
+    setCatalogue(unavailable);
     setRefreshRequired(true);
-    try {
-      await router.invalidate();
-      setRefreshRequired(false);
-    } catch {
-      toast.warning(
-        "Receipt confirmed, but refresh failed. Refresh before starting another receipt.",
+    setRefreshing(true);
+    // Await the query's explicit outcome, not router.invalidate(), whose loaders can catch errors.
+    const next = await readReceiptCatalogue({ pharmacyId, userId }, () => fetchCatalogue());
+    if (!epoch.active || generation !== epoch.generation) return;
+    catalogueRef.current = next;
+    setCatalogue(next);
+    setRefreshRequired(next.status !== "available");
+    setRefreshing(false);
+    if (next.status === "available") {
+      setProductId((current) =>
+        next.data.products.some((product) => product.id === current)
+          ? current
+          : (next.data.products[0]?.id ?? ""),
       );
+      setUnitId("");
+    } else {
+      toast.warning(RECEIPT_CATALOGUE_UNAVAILABLE);
     }
   };
 
   const confirmReceipt = async () => {
-    if (recovery.busy || !ready) return;
-    if (!recovery.pending && (refreshRequired || review.length === 0)) return;
+    if (busy || recovery.busy || !ready) return;
+    if (!recovery.pending && (!liveCatalogueAvailable() || refreshRequired || review.length === 0))
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -240,7 +332,7 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
   };
 
   const startAnother = () => {
-    if (busy || recovery.busy || refreshRequired) return;
+    if (busy || recovery.busy || refreshing || refreshRequired || !liveCatalogueAvailable()) return;
     try {
       recovery.startAnother();
       setReview([]);
@@ -326,7 +418,13 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
           {savedId ? (
             <Button
               type="button"
-              disabled={busy || !ready || refreshRequired}
+              disabled={
+                busy ||
+                !ready ||
+                refreshRequired ||
+                refreshing ||
+                visibleCatalogue.status !== "available"
+              }
               onClick={startAnother}
             >
               Start another receipt
@@ -338,13 +436,15 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
           )}
         </section>
       )}
-      {refreshRequired && (
-        <Button type="button" disabled={busy} onClick={() => void refreshCatalogue()}>
-          Refresh receiving catalogue
-        </Button>
-      )}
+      <Button type="button" disabled={busy || refreshing} onClick={() => void refreshCatalogue()}>
+        Refresh receiving catalogue
+      </Button>
 
-      {products.length === 0 ? (
+      {visibleCatalogue.status === "unavailable" ? (
+        <p role="alert" className="rounded-xl border p-4 text-sm">
+          {RECEIPT_CATALOGUE_UNAVAILABLE}
+        </p>
+      ) : products.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col gap-3 p-4">
             <p>Add a product and its packaging units before receiving stock.</p>

@@ -101,5 +101,5 @@ export async function getStockReceiptCatalogue() {
     base_units_per_unit: unit.base_units_per_unit,
   }));
 
-  return { products, units };
+  return { products, units, pharmacyId: context.pharmacyId, userId: context.userId };
 }
