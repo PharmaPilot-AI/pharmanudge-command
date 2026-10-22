@@ -4,15 +4,21 @@ import { resolveSessionUser } from "../auth/context";
 import { listProducts } from "./products";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
-import { stockReceiptSchema, type StockReceiptInput } from "./stock-receipt-schema";
+import { receiptSubmissionSchema, type ReceiptSubmission } from "./stock-receipt-schema";
 
-export async function confirmStockReceipt(input: StockReceiptInput): Promise<string> {
-  const receipt = stockReceiptSchema.parse(input);
+export async function confirmStockReceipt(input: ReceiptSubmission): Promise<string> {
+  const submission = receiptSubmissionSchema.parse(input);
+  const receipt = submission.request;
   const session = await resolveSessionUser();
   if (!session) throw new Error("Please sign in to receive stock.");
 
   const client = createServerSupabaseClient(session.accessToken);
   const context = await requirePharmacyContext(client);
+  if (submission.pharmacyId !== context.pharmacyId || submission.userId !== context.userId) {
+    throw new Error(
+      "This saved receipt belongs to a different user or pharmacy. Return to its original context to reconcile it.",
+    );
+  }
   if (context.role !== "owner" && context.role !== "pharmacist") {
     throw new Error("Only an active owner or pharmacist can receive stock.");
   }
