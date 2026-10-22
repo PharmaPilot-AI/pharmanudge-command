@@ -1,4 +1,5 @@
 import "@tanstack/react-start/server-only";
+import { CATALOGUE_PAGE_SIZE, loadCatalogueRows } from "./catalogue-pages";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveSessionUser } from "../auth/context";
 import { requirePharmacyContext } from "../pharmacy-context";
@@ -32,15 +33,22 @@ export async function listPackagingUnitsForProduct(
   const resolvedClient = await resolveClient(client);
   const { pharmacyId } = await requirePharmacyContext(resolvedClient);
 
-  const { data, error } = await resolvedClient
-    .from("packaging_units")
-    .select("*, products!inner(pharmacy_id)")
-    .eq("product_id", productId)
-    .eq("products.pharmacy_id", pharmacyId)
-    .eq("is_active", true)
-    .order("label");
-
-  if (error) throw error;
+  const data = await loadCatalogueRows(
+    (afterId) => {
+      let query = resolvedClient
+        .from("packaging_units")
+        .select("*, products!inner(pharmacy_id)")
+        .eq("product_id", productId)
+        .eq("products.pharmacy_id", pharmacyId)
+        .eq("is_active", true)
+        .order("id")
+        .limit(CATALOGUE_PAGE_SIZE);
+      if (afterId !== null) query = query.gt("id", afterId);
+      return query;
+    },
+    (row) => row.id,
+  );
+  data.sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
   return data.map(({ products: _products, ...unit }) => unit);
 }
 

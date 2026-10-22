@@ -1,4 +1,5 @@
 import "@tanstack/react-start/server-only";
+import { CATALOGUE_PAGE_SIZE, loadCatalogueRows } from "./catalogue-pages";
 import { resolveSessionUser } from "../auth/context";
 import { requirePharmacyContext } from "../pharmacy-context";
 import { createServerSupabaseClient } from "../supabase/server";
@@ -70,29 +71,28 @@ export async function listPharmacyExpenses() {
   const part = (type: string) => parts.find((p) => p.type === type)?.value;
   const date = `${part("year")}-${part("month")}-${part("day")}`;
 
-  const loadPage = (offset: number) =>
-    client
-      .rpc("list_pharmacy_expenses", {
-        target_pharmacy_id: context.pharmacyId,
-        target_date: date,
-      })
-      .range(offset, offset + 199);
+  const expenses = await loadCatalogueRows(
+    (afterId) => {
+      let query = client
+        .rpc("list_pharmacy_expenses", {
+          target_pharmacy_id: context.pharmacyId,
+          target_date: date,
+        })
+        .order("expense_id")
+        .limit(CATALOGUE_PAGE_SIZE);
+      if (afterId !== null) query = query.gt("expense_id", afterId);
+      return query;
+    },
+    (row) => row.expense_id,
+  ).catch(() => {
+    throw new Error("Unable to load all expenses. Please refresh and try again.");
+  });
 
-  const first = await loadPage(0);
-  if (first.error || !first.data) {
-    throw new Error("Unable to load expenses. Please refresh and try again.");
-  }
-
-  const expenses = [...first.data];
-  let pageLength = first.data.length;
-  while (pageLength === 200) {
-    const next = await loadPage(expenses.length);
-    if (next.error || !next.data) {
-      throw new Error("Unable to load all expenses. Please refresh and try again.");
-    }
-    expenses.push(...next.data);
-    pageLength = next.data.length;
-  }
+  // Pagination uses the unique UUID; retain the RPC's newest-first display order.
+  expenses.sort(
+    (a, b) =>
+      Date.parse(b.spent_at) - Date.parse(a.spent_at) || b.expense_id.localeCompare(a.expense_id),
+  );
 
   return {
     expenses,
