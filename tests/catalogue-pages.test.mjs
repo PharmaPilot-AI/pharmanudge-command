@@ -18,7 +18,7 @@ async function modules(client, role = 'owner', session = { accessToken: 'dummy' 
       if (spec.includes('auth/context')) exports = { resolveSessionUser: async () => session };
       else if (spec.includes('pharmacy-context')) exports = { requirePharmacyContext: async () => ({ pharmacyId: 'tenant-a', role }) };
       else if (spec.includes('supabase/server')) exports = { createServerSupabaseClient: () => client };
-      else if (spec.includes('-schema')) exports = { saleSchema: {}, stockReceiptSchema: {} };
+      else if (spec.includes('-schema')) exports = { saleSchema: {}, stockReceiptSchema: {}, expenseSchema: {} };
       else assert.equal(spec, '@tanstack/react-start/server-only');
       const s = new SyntheticModule(Object.keys(exports), function () {
         for (const [k, v] of Object.entries(exports)) this.setExport(k, v);
@@ -37,6 +37,7 @@ function fakeClient(count = 1205, cap = 73, fail = false, omitStock = false) {
     packaging_units: Array.from({ length: count }, (_, i) => ({ id: id(i + 1), product_id: id(i + 1), label: 'Tablet', base_units_per_unit: 1, price: 50, is_active: true, products: { pharmacy_id: 'tenant-a', is_active: true } })),
     services: Array.from({ length: count }, (_, i) => ({ id: id(i + 1), name: `Service ${i}`, price: 20, is_active: true, pharmacy_id: 'tenant-a' })),
     list_pharmacy_inventory: Array.from({ length: count }, (_, i) => ({ product_id: id(i + 1), available_quantity: '17', stock_value: 'SECRET-COST' })),
+    list_pharmacy_expenses: Array.from({ length: count }, (_, i) => ({ expense_id: id(i + 1), category: 'other', description: `Expense ${i}`, amount: '1.25', payment_source: 'cash', recorded_by: id(1), spent_at: i % 2 ? '2026-10-01T09:30:00Z' : '2026-10-01T10:00:00+01:00' })),
   };
   function query(table, args) {
     const state = { table, args, filters: [], gt: null, order: null, limit: Infinity, select: '*' };
@@ -46,11 +47,17 @@ function fakeClient(count = 1205, cap = 73, fail = false, omitStock = false) {
       gt: (key, value) => { state.gt = [key, value]; return q; },
       order: key => { state.order = key; return q; },
       limit: value => { state.limit = value; return q; },
+      range: (start, end) => { state.offset = start; state.limit = end - start + 1; return q; },
       then: (ok, bad) => Promise.resolve().then(() => {
         calls.push(state);
         if (fail && state.gt) return { data: null, error: new Error('synthetic') };
         const source = omitStock && table === 'list_pharmacy_inventory' ? [] : datasets[table];
-        const rows = source.filter(row => !state.gt || row[state.gt[0]] > state.gt[1]).slice(0, Math.min(cap, state.limit));
+        const filtered = source.filter(row => !state.gt || row[state.gt[0]] > state.gt[1]);
+        if (table === 'list_pharmacy_expenses') filtered.sort(state.order
+          ? (a, b) => a[state.order].localeCompare(b[state.order])
+          : (a, b) => Date.parse(b.spent_at) - Date.parse(a.spent_at) || b.expense_id.localeCompare(a.expense_id));
+        const offset = state.offset ?? 0;
+        const rows = filtered.slice(offset, offset + Math.min(cap, state.limit));
         return { error: null, data: rows.map(row => state.select === '*' || state.select.startsWith('*,') || table.startsWith('list_') ? { ...row } : Object.fromEntries(state.select.split(',').map(k => k.trim()).filter(k => k in row).map(k => [k, row[k]]))) };
       }).then(ok, bad),
     };
@@ -103,6 +110,53 @@ test('POS joining work stays bounded for a large complete catalogue', async () =
   assert.equal(result.products.length, 1205);
   assert.ok(result.products.every(product => product.units.length === 1 && product.units[0].product_id === product.id));
   assert.ok(unitVisits < 100_000, `Packaging-row visits exceeded the linear fixture budget: ${unitVisits}`);
+});
+
+test('expense list includes every capped page and preserves newest-first business-day totals', async () => {
+  const c = fakeClient(); const load = await modules(c); const { listPharmacyExpenses } = await load('expenses');
+  const result = await listPharmacyExpenses();
+  assert.equal(result.expenses.length, 1205);
+  assert.equal(new Set(result.expenses.map(row => row.expense_id)).size, 1205);
+  assert.equal(result.expenses.reduce((sum, row) => sum + Number(row.amount), 0), 1205 * 1.25);
+  for (let i = 1; i < result.expenses.length; i++) {
+    const before = result.expenses[i - 1], after = result.expenses[i];
+    assert.ok(Date.parse(before.spent_at) > Date.parse(after.spent_at) || (Date.parse(before.spent_at) === Date.parse(after.spent_at) && before.expense_id > after.expense_id));
+  }
+  assert.equal(c.calls.length, Math.ceil(1205 / 73) + 1);
+  for (const call of c.calls) {
+    assert.equal(call.table, 'list_pharmacy_expenses');
+    assert.equal(call.args.target_pharmacy_id, 'tenant-a');
+    assert.equal(call.args.target_date, result.date);
+    assert.equal(call.order, 'expense_id');assert.equal(call.limit, 200);
+    if (call.gt) assert.equal(call.gt[0], 'expense_id');
+  }
+});
+
+test('expense empty and exact-boundary pages terminate, including lower server caps', async () => {
+  for (const [count, cap] of [[0, 200], [200, 200], [401, 7]]) {
+    const c = fakeClient(count, cap); const load = await modules(c);
+    const result = await (await load('expenses')).listPharmacyExpenses();
+    assert.equal(result.expenses.length, count);
+    assert.equal(c.calls.length, Math.ceil(count / cap) + 1);
+  }
+});
+
+test('expense later-page failures reject rather than displaying partial totals', async () => {
+  const c = fakeClient(401, 73, true); const load = await modules(c);
+  await assert.rejects((await load('expenses')).listPharmacyExpenses(), /Unable to load all expenses/);
+  assert.equal(c.calls.length, 2);
+});
+
+test('expense access retains staff roles and denies missing sessions and cashier before query', async () => {
+  for (const role of ['owner', 'pharmacist', 'accountant']) {
+    const c = fakeClient(1); const load = await modules(c, role);
+    assert.equal((await (await load('expenses')).listPharmacyExpenses()).expenses.length, 1);
+  }
+  for (const [role, session] of [['cashier', { accessToken: 'dummy' }], ['owner', null]]) {
+    const c = fakeClient(); const load = await modules(c, role, session);
+    await assert.rejects((await load('expenses')).listPharmacyExpenses());
+    assert.equal(c.calls.length, 0);
+  }
 });
 
 test('receiving loads products and units beyond cap and strips join metadata', async () => {
