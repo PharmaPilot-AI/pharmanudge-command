@@ -178,7 +178,7 @@ function ProductsPage() {
     <div className="flex max-w-4xl flex-col gap-4">
       <PageHeader
         title="Products"
-        description={`${products.length} products in the catalog.`}
+        description={`${products.length} ${products.length === 1 ? "product" : "products"} in the catalog.`}
         actions={
           canManageCatalogue ? (
             <Button size="sm" className="gap-1" onClick={openAddDialog}>

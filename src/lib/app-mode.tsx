@@ -60,7 +60,7 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
   const [mockMember, setMockMember] = useState<TeamMember>(defaultMember);
   const [mode, setMode] = useState<AppMode>(roleDefaults[defaultMember.role].mode);
 
-  // Resets mode to the real role's default exactly when a real identity
+  // Restores the owner's tab preference when a real identity
   // first becomes available (or changes) — e.g. logging in via a
   // client-side navigation, where this provider stays mounted across the
   // transition. Keyed on primitives, not the identity object (a fresh
@@ -68,7 +68,20 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
   // every render and fight the user's own mode-toggle clicks.
   useEffect(() => {
     if (identity) {
-      setMode(roleDefaults[identity.role].mode);
+      let restoredMode = roleDefaults[identity.role].mode;
+
+      if (identity.role === "owner") {
+        try {
+          const saved = sessionStorage.getItem(
+            `pharmanudge:app-mode:${identity.userId}`,
+          );
+          if (saved === "owner" || saved === "ops") restoredMode = saved;
+        } catch {
+          // Storage may be unavailable; retain the role default.
+        }
+      }
+
+      setMode(restoredMode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity?.userId, identity?.role]);
@@ -100,6 +113,19 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
             return defaults.home;
           },
       switchMode: (nextMode) => {
+        if (!canSwitchMode) return roleDefaults[member.role].home;
+
+        if (identity?.role === "owner") {
+          try {
+            sessionStorage.setItem(
+              `pharmanudge:app-mode:${identity.userId}`,
+              nextMode,
+            );
+          } catch {
+            // Switching still works when storage is unavailable.
+          }
+        }
+
         setMode(nextMode);
         return nextMode === "owner" ? "/" : "/pos";
       },

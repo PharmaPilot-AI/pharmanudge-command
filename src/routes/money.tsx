@@ -48,7 +48,7 @@ function MoneyPage() {
         <KpiCard
           label="Total sales"
           value={financialMoney(f.total_sales)}
-          sub={`${f.sale_count} transactions`}
+          sub={`${f.sale_count} ${Number(f.sale_count) === 1 ? "transaction" : "transactions"}`}
           icon={Banknote}
         />
         <KpiCard

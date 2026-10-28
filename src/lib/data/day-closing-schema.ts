@@ -56,6 +56,7 @@ export const savedDayClosureSchema = dayTotalsSchema
     id: z.string().uuid(),
     business_date: businessDate,
     closed_by: z.string().uuid(),
+    closed_by_email: z.string().nullable().optional(),
     closed_at: z.string().datetime({ offset: true }),
     opening_cash: moneyText,
     counted_cash: moneyText,
