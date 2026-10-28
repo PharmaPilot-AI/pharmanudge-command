@@ -28,7 +28,14 @@ export async function sendPharmacyInvitationEmail(
       APP_RESEND_API_KEY: process.env["APP_RESEND_API_KEY"],
     });
     const link = new URL("/accept-invitation", getSiteUrl());
-    if (link.protocol !== "https:") return { status: "failed" };
+    const isLocalDevelopment =
+      process.env["NODE_ENV"] === "development" &&
+      link.protocol === "http:" &&
+      (link.hostname === "127.0.0.1" || link.hostname === "localhost");
+
+    if (link.protocol !== "https:" && !isLocalDevelopment) {
+      return { status: "failed" };
+    }
     link.searchParams.set("invitation", invitation.id);
 
     const roleLabels = {
