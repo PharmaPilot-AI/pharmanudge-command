@@ -48,7 +48,10 @@ export function VerifiedFactsBlock({
 
 export function RecommendationsBlock({ items }: { items: string[] }) {
   return (
-    <section className="mt-2 rounded-xl border border-warning/30 bg-warning/5 p-3.5" aria-label="Recommendations">
+    <section
+      className="mt-2 rounded-xl border border-warning/30 bg-warning/5 p-3.5"
+      aria-label="Recommendations"
+    >
       <h4 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-warning">
         <Lightbulb className="h-3.5 w-3.5" aria-hidden />
         Recommendations

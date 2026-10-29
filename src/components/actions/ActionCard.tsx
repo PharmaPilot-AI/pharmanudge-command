@@ -47,7 +47,13 @@ interface ActionCardProps {
 }
 
 /** A single "what should I do next" item with severity, context and a CTA. */
-export function ActionCard({ action, status = "open", onResolve, onSnooze, onAssign }: ActionCardProps) {
+export function ActionCard({
+  action,
+  status = "open",
+  onResolve,
+  onSnooze,
+  onAssign,
+}: ActionCardProps) {
   const config = severityConfig[action.severity];
   const Icon = config.icon;
   const assignee = teamMembers.find((m) => m.id === action.assigneeId);
@@ -62,7 +68,12 @@ export function ActionCard({ action, status = "open", onResolve, onSnooze, onAss
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", config.badge)}>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+            config.badge,
+          )}
+        >
           <Icon className="h-3 w-3" aria-hidden />
           {config.label}
         </span>
@@ -72,7 +83,9 @@ export function ActionCard({ action, status = "open", onResolve, onSnooze, onAss
           </span>
         )}
         {typeof action.amount === "number" && (
-          <span className="ml-auto text-sm font-semibold tabular-nums">{formatNaira(action.amount)}</span>
+          <span className="ml-auto text-sm font-semibold tabular-nums">
+            {formatNaira(action.amount)}
+          </span>
         )}
       </div>
 
@@ -94,7 +107,12 @@ export function ActionCard({ action, status = "open", onResolve, onSnooze, onAss
 
         {interactive && status === "open" && (
           <>
-            <Button variant="ghost" size="sm" className="gap-1 text-success hover:text-success" onClick={onResolve}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-success hover:text-success"
+              onClick={onResolve}
+            >
               <Check className="h-4 w-4" aria-hidden />
               Resolve
             </Button>

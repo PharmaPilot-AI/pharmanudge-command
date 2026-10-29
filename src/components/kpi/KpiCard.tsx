@@ -27,13 +27,29 @@ interface KpiCardProps {
 }
 
 /** Reusable KPI tile — money values use tabular numerals for scannability. */
-export function KpiCard({ label, value, sub, deltaPct, icon: Icon, tone = "default", href, footer }: KpiCardProps) {
+export function KpiCard({
+  label,
+  value,
+  sub,
+  deltaPct,
+  icon: Icon,
+  tone = "default",
+  href,
+  footer,
+}: KpiCardProps) {
   const body = (
     <Card className={cn("h-full transition-shadow", href && "hover:shadow-md")}>
       <CardContent className="flex h-full flex-col gap-2 p-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-          <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", toneIconClasses[tone])}>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          <span
+            className={cn(
+              "grid h-8 w-8 shrink-0 place-items-center rounded-lg",
+              toneIconClasses[tone],
+            )}
+          >
             <Icon className="h-4 w-4" aria-hidden />
           </span>
         </div>
@@ -46,7 +62,11 @@ export function KpiCard({ label, value, sub, deltaPct, icon: Icon, tone = "defau
                 deltaPct >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
               )}
             >
-              {deltaPct >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {deltaPct >= 0 ? (
+                <TrendingUp className="h-3 w-3" />
+              ) : (
+                <TrendingDown className="h-3 w-3" />
+              )}
               {Math.abs(deltaPct)}% vs yesterday
             </span>
           )}
@@ -59,7 +79,10 @@ export function KpiCard({ label, value, sub, deltaPct, icon: Icon, tone = "defau
 
   if (href) {
     return (
-      <Link to={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">
+      <Link
+        to={href}
+        className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+      >
         {body}
       </Link>
     );

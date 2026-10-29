@@ -18,8 +18,20 @@ import type {
 
 export const teamMembers: TeamMember[] = [
   { id: "u1", name: "Adaeze Okafor", role: "owner", roleLabel: "Owner / Admin", initials: "AO" },
-  { id: "u2", name: "Dr. Chidi Nwosu", role: "pharmacist", roleLabel: "Superintendent Pharmacist", initials: "CN" },
-  { id: "u3", name: "Blessing Eze", role: "cashier", roleLabel: "Cashier / Assistant", initials: "BE" },
+  {
+    id: "u2",
+    name: "Dr. Chidi Nwosu",
+    role: "pharmacist",
+    roleLabel: "Superintendent Pharmacist",
+    initials: "CN",
+  },
+  {
+    id: "u3",
+    name: "Blessing Eze",
+    role: "cashier",
+    roleLabel: "Cashier / Assistant",
+    initials: "BE",
+  },
   { id: "u4", name: "Tunde Bakare", role: "accountant", roleLabel: "Accountant", initials: "TB" },
 ];
 
@@ -231,14 +243,86 @@ export const services: ServiceItem[] = [
 /* --------------------------------- Batches ------------------------------- */
 
 export const batches: Batch[] = [
-  { id: "b1", productId: "p7", batchNumber: "IB-3345", expiryDate: "2026-09-05", daysToExpiry: 13, baseUnitsRemaining: 120, costPerBaseUnit: 24, supplier: "Emzor Pharmaceuticals" },
-  { id: "b2", productId: "p9", batchNumber: "VC-5560", expiryDate: "2026-09-15", daysToExpiry: 23, baseUnitsRemaining: 100, costPerBaseUnit: 55, supplier: "Fidson Healthcare" },
-  { id: "b3", productId: "p1", batchNumber: "PX-8821", expiryDate: "2026-09-10", daysToExpiry: 18, baseUnitsRemaining: 300, costPerBaseUnit: 22, supplier: "Emzor Pharmaceuticals" },
-  { id: "b4", productId: "p10", batchNumber: "CS-1102", expiryDate: "2026-09-20", daysToExpiry: 28, baseUnitsRemaining: 12, costPerBaseUnit: 1100, supplier: "Orange Drugs" },
-  { id: "b5", productId: "p1", batchNumber: "PX-9001", expiryDate: "2027-08-01", daysToExpiry: 343, baseUnitsRemaining: 700, costPerBaseUnit: 22, supplier: "Emzor Pharmaceuticals" },
-  { id: "b6", productId: "p4", batchNumber: "MT-2210", expiryDate: "2027-03-15", daysToExpiry: 204, baseUnitsRemaining: 850, costPerBaseUnit: 18, supplier: "Swiss Pharma (Swipha)" },
-  { id: "b7", productId: "p5", batchNumber: "CT-7731", expiryDate: "2026-10-22", daysToExpiry: 60, baseUnitsRemaining: 620, costPerBaseUnit: 25, supplier: "GSK Nigeria" },
-  { id: "b8", productId: "p3", batchNumber: "AL-4410", expiryDate: "2027-01-30", daysToExpiry: 160, baseUnitsRemaining: 240, costPerBaseUnit: 145, supplier: "GSK Nigeria" },
+  {
+    id: "b1",
+    productId: "p7",
+    batchNumber: "IB-3345",
+    expiryDate: "2026-09-05",
+    daysToExpiry: 13,
+    baseUnitsRemaining: 120,
+    costPerBaseUnit: 24,
+    supplier: "Emzor Pharmaceuticals",
+  },
+  {
+    id: "b2",
+    productId: "p9",
+    batchNumber: "VC-5560",
+    expiryDate: "2026-09-15",
+    daysToExpiry: 23,
+    baseUnitsRemaining: 100,
+    costPerBaseUnit: 55,
+    supplier: "Fidson Healthcare",
+  },
+  {
+    id: "b3",
+    productId: "p1",
+    batchNumber: "PX-8821",
+    expiryDate: "2026-09-10",
+    daysToExpiry: 18,
+    baseUnitsRemaining: 300,
+    costPerBaseUnit: 22,
+    supplier: "Emzor Pharmaceuticals",
+  },
+  {
+    id: "b4",
+    productId: "p10",
+    batchNumber: "CS-1102",
+    expiryDate: "2026-09-20",
+    daysToExpiry: 28,
+    baseUnitsRemaining: 12,
+    costPerBaseUnit: 1100,
+    supplier: "Orange Drugs",
+  },
+  {
+    id: "b5",
+    productId: "p1",
+    batchNumber: "PX-9001",
+    expiryDate: "2027-08-01",
+    daysToExpiry: 343,
+    baseUnitsRemaining: 700,
+    costPerBaseUnit: 22,
+    supplier: "Emzor Pharmaceuticals",
+  },
+  {
+    id: "b6",
+    productId: "p4",
+    batchNumber: "MT-2210",
+    expiryDate: "2027-03-15",
+    daysToExpiry: 204,
+    baseUnitsRemaining: 850,
+    costPerBaseUnit: 18,
+    supplier: "Swiss Pharma (Swipha)",
+  },
+  {
+    id: "b7",
+    productId: "p5",
+    batchNumber: "CT-7731",
+    expiryDate: "2026-10-22",
+    daysToExpiry: 60,
+    baseUnitsRemaining: 620,
+    costPerBaseUnit: 25,
+    supplier: "GSK Nigeria",
+  },
+  {
+    id: "b8",
+    productId: "p3",
+    batchNumber: "AL-4410",
+    expiryDate: "2027-01-30",
+    daysToExpiry: 160,
+    baseUnitsRemaining: 240,
+    costPerBaseUnit: 145,
+    supplier: "GSK Nigeria",
+  },
 ];
 
 /* --------------------------------- Actions ------------------------------- */
@@ -305,10 +389,38 @@ export const todayKpis: DailyKpis = {
 };
 
 export const initialExpenses: Expense[] = [
-  { id: "e1", category: "Utilities", description: "Generator fuel (20 litres)", amount: 15000, time: "7:40 AM", recordedBy: "Blessing Eze" },
-  { id: "e2", category: "Supplies", description: "Packaging & nylon bags", amount: 2500, time: "10:15 AM", recordedBy: "Blessing Eze" },
-  { id: "e3", category: "Bank & POS charges", description: "POS settlement charges", amount: 1850, time: "1:05 PM", recordedBy: "Tunde Bakare" },
-  { id: "e4", category: "Logistics", description: "Dispatch delivery to supplier", amount: 4950, time: "3:30 PM", recordedBy: "Adaeze Okafor" },
+  {
+    id: "e1",
+    category: "Utilities",
+    description: "Generator fuel (20 litres)",
+    amount: 15000,
+    time: "7:40 AM",
+    recordedBy: "Blessing Eze",
+  },
+  {
+    id: "e2",
+    category: "Supplies",
+    description: "Packaging & nylon bags",
+    amount: 2500,
+    time: "10:15 AM",
+    recordedBy: "Blessing Eze",
+  },
+  {
+    id: "e3",
+    category: "Bank & POS charges",
+    description: "POS settlement charges",
+    amount: 1850,
+    time: "1:05 PM",
+    recordedBy: "Tunde Bakare",
+  },
+  {
+    id: "e4",
+    category: "Logistics",
+    description: "Dispatch delivery to supplier",
+    amount: 4950,
+    time: "3:30 PM",
+    recordedBy: "Adaeze Okafor",
+  },
 ];
 
 export const expenseCategories = [
@@ -415,5 +527,4 @@ export const expiryValueAtRisk = expiringBatches.reduce(
   0,
 );
 
-export const productById = (id: string): Product | undefined =>
-  products.find((p) => p.id === id);
+export const productById = (id: string): Product | undefined => products.find((p) => p.id === id);

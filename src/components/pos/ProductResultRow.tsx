@@ -40,7 +40,10 @@ export function ProductResultRow({ product, onAdd }: ProductResultRowProps) {
       <div className="flex shrink-0 flex-col items-end gap-1.5">
         <p className="text-sm font-semibold tabular-nums">
           {formatNaira(baseUnit.price)}
-          <span className="text-xs font-normal text-muted-foreground"> / {baseUnit.label.toLowerCase()}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {" "}
+            / {baseUnit.label.toLowerCase()}
+          </span>
         </p>
         <Button size="sm" disabled={out} onClick={() => onAdd(product)} className="h-9 gap-1">
           <Plus className="h-4 w-4" aria-hidden />

@@ -262,7 +262,10 @@ function ClosingForm({ data }: { data: PageData }) {
               <Row label="Cash variance" value={money(kobo(closure.cash_variance))} />
             </dl>
             <p className="text-sm text-muted-foreground">
-              Closed by {closure.closed_by === data.userId ? "You" : (closure.closed_by_email || "Account unavailable")}
+              Closed by{" "}
+              {closure.closed_by === data.userId
+                ? "You"
+                : closure.closed_by_email || "Account unavailable"}
               {" · "}
               {new Intl.DateTimeFormat("en-GB", {
                 timeZone: "Africa/Lagos",

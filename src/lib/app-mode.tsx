@@ -52,10 +52,13 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
   // Reads Checkpoint 5's already-resolved router context only — never calls
   // getPharmacyContext()/resolveSessionUser() here.
   const { user, pharmacyContext } = useRouteContext({ from: "__root__" });
-  const identity =
-    user && pharmacyContext
-      ? { userId: user.userId, email: user.email, role: pharmacyContext.role }
-      : null;
+  const userId = user?.userId;
+  const email = user?.email;
+  const role = pharmacyContext?.role;
+  const identity = useMemo(
+    () => (userId && role ? { userId, email, role } : null),
+    [userId, email, role],
+  );
 
   const [mockMember, setMockMember] = useState<TeamMember>(defaultMember);
   const [mode, setMode] = useState<AppMode>(roleDefaults[defaultMember.role].mode);
@@ -72,9 +75,7 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
 
       if (identity.role === "owner") {
         try {
-          const saved = sessionStorage.getItem(
-            `pharmanudge:app-mode:${identity.userId}`,
-          );
+          const saved = sessionStorage.getItem(`pharmanudge:app-mode:${identity.userId}`);
           if (saved === "owner" || saved === "ops") restoredMode = saved;
         } catch {
           // Storage may be unavailable; retain the role default.
@@ -86,15 +87,19 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity?.userId, identity?.role]);
 
-  const member: TeamMember = identity
-    ? {
-        id: identity.userId,
-        name: identity.email ?? "Signed-in user",
-        role: identity.role,
-        roleLabel: roleLabelFor(identity.role),
-        initials: initialsFromEmail(identity.email),
-      }
-    : mockMember;
+  const member = useMemo<TeamMember>(
+    () =>
+      identity
+        ? {
+            id: identity.userId,
+            name: identity.email ?? "Signed-in user",
+            role: identity.role,
+            roleLabel: roleLabelFor(identity.role),
+            initials: initialsFromEmail(identity.email),
+          }
+        : mockMember,
+    [identity, mockMember],
+  );
 
   const canSwitchMode = identity ? identity.role === "owner" : mockMember.role === "owner";
 
@@ -117,10 +122,7 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
 
         if (identity?.role === "owner") {
           try {
-            sessionStorage.setItem(
-              `pharmanudge:app-mode:${identity.userId}`,
-              nextMode,
-            );
+            sessionStorage.setItem(`pharmanudge:app-mode:${identity.userId}`, nextMode);
           } catch {
             // Switching still works when storage is unavailable.
           }

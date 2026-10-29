@@ -3,7 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { getRequest } from "@tanstack/react-start/server";
 import { getServerSupabaseEnv } from "../supabase/server-env";
 import type { Database } from "../supabase/database.types";
-import { clearSessionCookie, readSessionData, writeSessionData, type SessionTokens } from "./session";
+import {
+  clearSessionCookie,
+  readSessionData,
+  writeSessionData,
+  type SessionTokens,
+} from "./session";
 
 /** How far ahead of expiry to proactively refresh. */
 const REFRESH_SAFETY_MARGIN_SECONDS = 60;

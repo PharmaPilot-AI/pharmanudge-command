@@ -13,9 +13,16 @@ export const Route = createFileRoute("/ask-ai")({
   head: () => ({
     meta: [
       { title: "Ask PharmaNudge — PharmaNudge" },
-      { name: "description", content: "Ask questions about your pharmacy's sales, cash and stock. Answers separate verified facts from recommendations." },
+      {
+        name: "description",
+        content:
+          "Ask questions about your pharmacy's sales, cash and stock. Answers separate verified facts from recommendations.",
+      },
       { property: "og:title", content: "Ask PharmaNudge" },
-      { property: "og:description", content: "Decision intelligence for your pharmacy — facts first, then advice." },
+      {
+        property: "og:description",
+        content: "Decision intelligence for your pharmacy — facts first, then advice.",
+      },
       { property: "og:type", content: "website" },
     ],
   }),
@@ -52,11 +59,7 @@ function AskAi() {
     const answer: AiChatMessage = scripted
       ? { id: nextId(), role: "assistant", ...scripted }
       : { id: nextId(), role: "assistant", text: aiMockFallback };
-    setMessages((prev) => [
-      ...prev,
-      { id: nextId(), role: "user", text: trimmed },
-      answer,
-    ]);
+    setMessages((prev) => [...prev, { id: nextId(), role: "user", text: trimmed }, answer]);
     setInput("");
   };
 
@@ -75,7 +78,10 @@ function AskAi() {
       {/* Thread */}
       <div className="flex flex-1 flex-col gap-4" role="log" aria-label="Conversation">
         {messages.map((m) => (
-          <div key={m.id} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+          <div
+            key={m.id}
+            className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}
+          >
             <div
               className={cn(
                 "max-w-[92%] sm:max-w-[85%]",
@@ -127,7 +133,13 @@ function AskAi() {
           className="h-12 flex-1 text-base"
           aria-label="Ask PharmaNudge a question"
         />
-        <Button type="submit" size="lg" className="h-12 w-12 shrink-0 p-0" disabled={!input.trim()} aria-label="Send">
+        <Button
+          type="submit"
+          size="lg"
+          className="h-12 w-12 shrink-0 p-0"
+          disabled={!input.trim()}
+          aria-label="Send"
+        >
           <Send className="h-5 w-5" />
         </Button>
       </form>

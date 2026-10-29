@@ -13,7 +13,12 @@ interface CartLineItemProps {
 }
 
 /** Stock-product cart line with unit selection and live base-unit stock impact. */
-export function CartLineItem({ line, onQuantityChange, onUnitChange, onRemove }: CartLineItemProps) {
+export function CartLineItem({
+  line,
+  onQuantityChange,
+  onUnitChange,
+  onRemove,
+}: CartLineItemProps) {
   const { product, unit, quantity } = line;
   const maxQuantity = Math.floor(product.baseUnitsInStock / unit.baseUnitsPerUnit);
   const impactBase = toBaseUnits(quantity, unit);
@@ -35,11 +40,7 @@ export function CartLineItem({ line, onQuantityChange, onUnitChange, onRemove }:
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <UnitSelector
-          units={product.units}
-          value={unit.id}
-          onChange={onUnitChange}
-        />
+        <UnitSelector units={product.units} value={unit.id} onChange={onUnitChange} />
         <div className="flex items-center rounded-md border">
           <Button
             type="button"
@@ -64,7 +65,9 @@ export function CartLineItem({ line, onQuantityChange, onUnitChange, onRemove }:
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="ml-auto text-sm font-bold tabular-nums">{formatNaira(unit.price * quantity)}</p>
+        <p className="ml-auto text-sm font-bold tabular-nums">
+          {formatNaira(unit.price * quantity)}
+        </p>
       </div>
 
       <p
@@ -74,8 +77,8 @@ export function CartLineItem({ line, onQuantityChange, onUnitChange, onRemove }:
         )}
       >
         Stock impact: -{impactBase.toLocaleString("en-US")} {product.baseUnitLabel}
-        {impactBase === 1 ? "" : "s"} · Remaining after sale:{" "}
-        {remaining.toLocaleString("en-US")} {product.baseUnitLabel}
+        {impactBase === 1 ? "" : "s"} · Remaining after sale: {remaining.toLocaleString("en-US")}{" "}
+        {product.baseUnitLabel}
         {remaining === 1 ? "" : "s"}
         {exceeds ? ` — only ${maxQuantity} × ${unit.label} available` : ""}
       </p>

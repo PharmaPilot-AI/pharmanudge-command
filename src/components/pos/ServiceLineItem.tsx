@@ -63,7 +63,9 @@ export function ServiceLineItem({ line, onQuantityChange, onRemove }: ServiceLin
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="ml-auto text-sm font-bold tabular-nums">{formatNaira(service.price * quantity)}</p>
+        <p className="ml-auto text-sm font-bold tabular-nums">
+          {formatNaira(service.price * quantity)}
+        </p>
       </div>
     </div>
   );
