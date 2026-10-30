@@ -10,7 +10,6 @@ import {
   Package,
   ReceiptText,
   ShoppingCart,
-  Sparkles,
   Stethoscope,
   Truck,
   Users,
@@ -31,7 +30,6 @@ export const ownerNav: NavItem[] = [
   { to: "/actions", label: "Actions", icon: Zap },
   { to: "/inventory", label: "Inventory", icon: Boxes },
   { to: "/money", label: "Money", icon: Wallet },
-  { to: "/ask-ai", label: "Ask AI", icon: Sparkles },
 ];
 
 /** Operations mode — labeled sidebar; first four also anchor mobile nav. */
