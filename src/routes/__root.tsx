@@ -136,7 +136,7 @@ const resolveAuthContext = createServerFn({ method: "GET" }).handler(
 );
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  beforeLoad: async ({ location }): Promise<AuthRouteContext> => {
+  beforeLoad: async ({ location }) => {
     const { user, pharmacyContext } = await resolveAuthContext();
 
     if (!user && !isPublicRoute(location.pathname)) {
