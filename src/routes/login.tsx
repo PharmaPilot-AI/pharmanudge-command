@@ -1,8 +1,8 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { KeyRound, ShieldOff } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -77,11 +77,11 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const search = Route.useSearch();
   const { user, pharmacyContext } = Route.useRouteContext();
-  const navigate = useNavigate();
+  const router = useRouter();
   const login = useServerFn(loginAction);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -89,24 +89,21 @@ function LoginPage() {
   });
 
   const onSubmit = async (values: LoginFormValues) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
       await login({ data: values });
-      // Role isn't known yet at this point (context here predates the
-      // login that just happened) — falls back to resolveHome(undefined),
-      // i.e. "/", when there's no valid redirect target.
-      if (search.invitation) {
-        // Reload the root session context after writing the login cookie.
-        window.location.assign(
-          `/accept-invitation?invitation=${encodeURIComponent(search.invitation)}`,
-        );
-        return;
-      }
-      await navigate({ to: resolveLoginTarget(search.redirect, undefined) });
+      // Re-run root session/membership resolution on the current login route.
+      // Its beforeLoad selects the invitation, authorised return route or
+      // role home using fresh context, never the pre-login closure's role.
+      await router.invalidate({ sync: true });
+      // Keep the old form locked until the resolved destination replaces it.
+      // An authenticated account without membership renders the state below.
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to log in.");
-    } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
+      toast.error(error instanceof Error ? error.message : "Unable to log in.");
     }
   };
 

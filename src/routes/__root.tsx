@@ -210,7 +210,14 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Outlet renders committed matches, while location already names the next
+  // URL during a pending navigation. Keep their layout decisions in sync.
+  const pathname = useRouterState({
+    select: (s) => s.matches.at(-1)?.pathname ?? s.location.pathname,
+  });
+  const isResolvingLogin = useRouterState({
+    select: (s) => s.status === "pending" && s.resolvedLocation?.pathname === "/login",
+  });
 
   // Public routes must never render inside the authenticated AppShell
   // chrome (header identity, sidebar/bottom nav, logout button) — these are
@@ -218,7 +225,11 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppModeProvider>
-        {isPublicRoute(pathname) ? (
+        {isResolvingLogin ? (
+          <div className="flex min-h-dvh items-center justify-center px-4" aria-busy="true">
+            <p role="status">Logging in…</p>
+          </div>
+        ) : isPublicRoute(pathname) ? (
           <Outlet />
         ) : (
           <AppShell>
