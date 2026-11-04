@@ -59,6 +59,9 @@ end;
 $$;
 
 revoke all on function public.get_pharmacy_business_day_status(uuid) from public, anon;
+-- Override only this newly created function's default-provided EXECUTE grant.
+-- Do not alter shared defaults or service_role access to any existing object.
+revoke execute on function public.get_pharmacy_business_day_status(uuid) from service_role;
 grant execute on function public.get_pharmacy_business_day_status(uuid) to authenticated;
 
 -- Fail atomically if target-specific default function privileges differ from
