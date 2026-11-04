@@ -4,6 +4,7 @@ import { recordPharmacyExpense, listPharmacyExpenses } from "./expenses";
 import { expenseSchema } from "./expense-schema";
 import { getPharmacyDaySummary, closePharmacyDay } from "./day-closing";
 import { closeDaySchema } from "./day-closing-schema";
+import { getPharmacyBusinessDayStatus } from "./business-day";
 import { getPharmacyFinancialSummary } from "./financial";
 import { reportPeriodSchema } from "./financial-schema";
 import { getPharmacyStockHealth } from "./stock-health";
@@ -225,6 +226,12 @@ export const pharmacyExpensesQuery = createServerFn({ method: "GET" }).handler((
 export const recordPharmacyExpenseMutation = createServerFn({ method: "POST" })
   .validator((input: unknown) => expenseSchema.parse(input))
   .handler(({ data }) => recordPharmacyExpense(data));
+
+// --- Business-day status (no reconciliation totals) ---
+
+export const pharmacyBusinessDayQuery = createServerFn({ method: "GET" }).handler(() =>
+  getPharmacyBusinessDayStatus(),
+);
 
 // --- Daily reconciliation ---
 

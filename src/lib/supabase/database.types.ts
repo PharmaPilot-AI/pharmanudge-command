@@ -419,6 +419,11 @@ export type Database = {
         };
         Returns: string;
       };
+      // Local draft contract: requires separate approval and application before deployment.
+      get_pharmacy_business_day_status: {
+        Args: { target_pharmacy_id: string };
+        Returns: Json;
+      };
       is_pharmacy_member: {
         Args: { target_pharmacy_id: string };
         Returns: boolean;

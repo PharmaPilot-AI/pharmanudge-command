@@ -2,6 +2,8 @@ import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ReceiptText } from "lucide-react";
 import { toast } from "sonner";
+import { useBusinessDay } from "@/lib/use-business-day";
+import { BusinessDayNotice } from "@/components/feedback/BusinessDayNotice";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +57,7 @@ function ExpensesPage() {
 
 function ExpenseForm({ data }: { data: ExpensePageData }) {
   const router = useRouter();
+  const businessDay = useBusinessDay(data.pharmacyId, data.userId);
   const storageKey = `pharmanudge:pending-expense:${data.pharmacyId}:${data.userId}`;
   const pendingRef = useRef<ExpenseInput | null>(null);
   const submittingRef = useRef(false);
@@ -84,7 +87,13 @@ function ExpenseForm({ data }: { data: ExpensePageData }) {
     }
   }, [storageKey]);
 
-  const locked = !storageReady || saving || pending !== null || refreshRequired;
+  const locked =
+    !storageReady ||
+    saving ||
+    pending !== null ||
+    refreshRequired ||
+    businessDay.blocked ||
+    businessDay.status.business_date !== data.date;
   const totalKobo = data.expenses.reduce(
     (sum, expense) => sum + Math.round(Number(expense.amount) * 100),
     0,
@@ -96,12 +105,26 @@ function ExpenseForm({ data }: { data: ExpensePageData }) {
   const refreshExpenses = async () => {
     setRefreshRequired(true);
     try {
-      await router.invalidate();
+      await router.invalidate({ sync: true });
       setRefreshRequired(false);
     } catch {
       toast.error("Refresh failed. Refresh expenses before recording another entry.");
     }
   };
+
+  useEffect(() => {
+    if (!businessDay.status.business_date || businessDay.status.business_date === data.date) return;
+    if (businessDay.status.kind !== "open" && businessDay.status.kind !== "closed") return;
+    setRefreshRequired(true);
+    void router.invalidate({ sync: true }).then(
+      () => setRefreshRequired(false),
+      () => {
+        toast.error(
+          "Refresh expenses for the current Lagos business day before recording another entry.",
+        );
+      },
+    );
+  }, [router, data.date, businessDay.status.kind, businessDay.status.business_date]);
 
   const submitExpense = async () => {
     if (submittingRef.current || !storageReady) return;
@@ -112,6 +135,8 @@ function ExpenseForm({ data }: { data: ExpensePageData }) {
     try {
       let request = pendingRef.current;
       if (!request) {
+        // Saved submissions retain their exact reference and may still be reconciled.
+        if (!(await businessDay.canSubmit(data.date))) return;
         const parsed = expenseSchema.safeParse({
           operation_id: crypto.randomUUID(),
           category,
@@ -131,6 +156,7 @@ function ExpenseForm({ data }: { data: ExpensePageData }) {
         setPending(request);
       }
 
+      const attemptDate = data.date;
       const result = await recordPharmacyExpenseMutation({ data: request });
       setRefreshRequired(true);
 
@@ -149,6 +175,10 @@ function ExpenseForm({ data }: { data: ExpensePageData }) {
         setDescription(request.description);
         setAmount(String(request.amount));
         setPaymentSource(request.payment_source);
+        if (result.message === "This business day is closed. New expenses cannot be recorded.") {
+          if (attemptDate) businessDay.markClosed(attemptDate);
+          else void businessDay.refresh();
+        }
         toast.error(result.message);
       }
 
@@ -174,6 +204,8 @@ function ExpenseForm({ data }: { data: ExpensePageData }) {
   return (
     <div className="flex max-w-3xl flex-col gap-5">
       <PageHeader title="Expenses" description={`Spending for ${data.date} · Lagos time`} />
+
+      <BusinessDayNotice status={businessDay.status} onRefresh={() => void businessDay.refresh()} />
 
       {storageError && (
         <p

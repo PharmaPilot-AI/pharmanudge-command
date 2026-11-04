@@ -2,6 +2,8 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Search, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
+import { useBusinessDay } from "@/lib/use-business-day";
+import { BusinessDayNotice } from "@/components/feedback/BusinessDayNotice";
 import { CartPanel } from "@/components/pos/CartPanel";
 import { ProductResultRow } from "@/components/pos/ProductResultRow";
 import { ServiceResultRow } from "@/components/pos/ServiceResultRow";
@@ -11,13 +13,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cartTotals, formatNaira, toBaseUnits } from "@/lib/money";
-import { posCatalogueQuery, confirmPharmacySaleMutation } from "@/lib/data/validation";
+import {
+  posCatalogueQuery,
+  confirmPharmacySaleMutation,
+  pharmacyBusinessDayQuery,
+} from "@/lib/data/validation";
 import { saleSchema, type SaleInput } from "@/lib/data/sale-schema";
 import type { CartLine, PaymentMethod, Product, ServiceItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/pos")({
-  loader: () => posCatalogueQuery(),
+  loader: async () => {
+    // Capture the server day BEFORE inventory loads. If midnight passes during
+    // loading, the live gate requires a new catalogue before permitting a sale.
+    const day = await pharmacyBusinessDayQuery().catch(() => null);
+    return { ...(await posCatalogueQuery()), businessDate: day?.business_date ?? null };
+  },
   head: () => ({
     meta: [
       { title: "Sell / POS — PharmaNudge" },
@@ -52,6 +63,7 @@ function PosPage() {
   const catalogue = Route.useLoaderData();
   const router = useRouter();
   const { pharmacyContext } = Route.useRouteContext();
+  const businessDay = useBusinessDay(pharmacyContext?.pharmacyId, pharmacyContext?.userId);
   const storageKey = pharmacyContext
     ? `pharmanudge:pending-sale:${pharmacyContext.pharmacyId}:${pharmacyContext.userId}`
     : null;
@@ -84,7 +96,13 @@ function PosPage() {
     }
   }, [storageKey]);
 
-  const editingLocked = !storageReady || saving || pendingSale !== null || refreshRequired;
+  const editingLocked =
+    !storageReady ||
+    saving ||
+    pendingSale !== null ||
+    refreshRequired ||
+    businessDay.blocked ||
+    businessDay.status.business_date !== catalogue.businessDate;
   const products = useMemo<Product[]>(
     () =>
       catalogue.products
@@ -221,12 +239,30 @@ function PosPage() {
   const refreshCatalogue = async () => {
     setRefreshRequired(true);
     try {
-      await router.invalidate();
+      await router.invalidate({ sync: true });
       setRefreshRequired(false);
     } catch {
       toast.error("Refresh failed. Refresh the catalogue before starting another sale.");
     }
   };
+
+  useEffect(() => {
+    if (
+      !businessDay.status.business_date ||
+      businessDay.status.business_date === catalogue.businessDate
+    )
+      return;
+    if (businessDay.status.kind !== "open" && businessDay.status.kind !== "closed") return;
+    setRefreshRequired(true);
+    void router.invalidate({ sync: true }).then(
+      () => setRefreshRequired(false),
+      () => {
+        toast.error(
+          "Refresh the catalogue for the current Lagos business day before starting another sale.",
+        );
+      },
+    );
+  }, [router, catalogue.businessDate, businessDay.status.kind, businessDay.status.business_date]);
 
   const checkout = async () => {
     if (submittingRef.current || !storageReady || !storageKey) return;
@@ -237,6 +273,8 @@ function PosPage() {
     try {
       let request = pendingRef.current;
       if (!request) {
+        // Read-only preflight; never replace or block reconciliation of a saved request.
+        if (!(await businessDay.canSubmit(catalogue.businessDate))) return;
         request = saleSchema.parse({
           operation_id: crypto.randomUUID(),
           payment_method: paymentMethod,
@@ -263,6 +301,7 @@ function PosPage() {
         setPendingSale(request);
       }
 
+      const attemptDate = catalogue.businessDate;
       const result = await confirmPharmacySaleMutation({ data: request });
 
       if (result.status === "confirmed") {
@@ -279,6 +318,10 @@ function PosPage() {
         setCartOpen(false);
         toast.success("Sale saved. Stock updated.");
       } else {
+        if (result.message === "This business day is closed. New sales cannot be recorded.") {
+          if (attemptDate) businessDay.markClosed(attemptDate);
+          else void businessDay.refresh();
+        }
         setLines([]);
         toast.error(result.message);
       }
@@ -328,6 +371,8 @@ function PosPage() {
         title="Sell / POS"
         description="Search by medicine name, generic name or barcode."
       />
+
+      <BusinessDayNotice status={businessDay.status} onRefresh={() => void businessDay.refresh()} />
 
       {storageError && (
         <p
