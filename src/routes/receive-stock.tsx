@@ -357,6 +357,13 @@ function ReceiptForm({ pharmacyId, userId }: { pharmacyId: string; userId: strin
       <PageHeader
         title="Receive Stock"
         description="Enter a delivery, review quantities and purchase costs, then save the receipt."
+        actions={
+          pending === null && ready ? (
+            <Button asChild variant="outline">
+              <Link to="/opening-stock">Enter opening stock from paper records</Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       {savedId && (

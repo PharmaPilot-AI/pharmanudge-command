@@ -26,7 +26,7 @@ export const Route = createFileRoute("/inventory")({
       { title: "Inventory — PharmaNudge" },
       {
         name: "description",
-        content: "Current pharmacy stock, purchase value and expiry risk.",
+        content: "Current pharmacy stock, stock value at cost and expiry risk.",
       },
     ],
   }),
@@ -49,7 +49,7 @@ function OwnerInventory() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6 lg:max-w-none">
       <PageHeader
         title="Inventory"
-        description="Current stock, purchase value and expiry risk."
+        description="Current stock, stock value at cost and expiry risk."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link to="/inventory-ops">Open operations view</Link>
@@ -59,9 +59,9 @@ function OwnerInventory() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
-          label="Stock value"
+          label="Stock value at cost"
           value={formatInventoryMoney(stockValue)}
-          sub="at purchase cost, including expired stock"
+          sub="at cost, including unavailable stock"
           icon={Wallet}
         />
         <KpiCard
@@ -112,7 +112,7 @@ function OwnerInventory() {
         empty="No remaining stock expires within the next 30 days."
         rows={expiring}
         detail={(row) =>
-          `${formatInventoryQuantity(row.expiring_quantity)} ${row.base_unit_label} · Purchase value: ${formatInventoryMoney(row.expiring_value)}`
+          `${formatInventoryQuantity(row.expiring_quantity)} ${row.base_unit_label} · Stock value at cost: ${formatInventoryMoney(row.expiring_value)}`
         }
       />
 

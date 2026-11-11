@@ -22,6 +22,7 @@ import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as InventoryOpsRouteImport } from './routes/inventory-ops'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MoneyRouteImport } from './routes/money'
+import { Route as OpeningStockRouteImport } from './routes/opening-stock'
 import { Route as PackagingRouteImport } from './routes/packaging'
 import { Route as PosRouteImport } from './routes/pos'
 import { Route as ProductsRouteImport } from './routes/products'
@@ -97,6 +98,11 @@ const MoneyRoute = MoneyRouteImport.update({
   path: '/money',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpeningStockRoute = OpeningStockRouteImport.update({
+  id: '/opening-stock',
+  path: '/opening-stock',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PackagingRoute = PackagingRouteImport.update({
   id: '/packaging',
   path: '/packaging',
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/inventory-ops': typeof InventoryOpsRoute
   '/login': typeof LoginRoute
   '/money': typeof MoneyRoute
+  '/opening-stock': typeof OpeningStockRoute
   '/packaging': typeof PackagingRoute
   '/pos': typeof PosRoute
   '/products': typeof ProductsRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/inventory-ops': typeof InventoryOpsRoute
   '/login': typeof LoginRoute
   '/money': typeof MoneyRoute
+  '/opening-stock': typeof OpeningStockRoute
   '/packaging': typeof PackagingRoute
   '/pos': typeof PosRoute
   '/products': typeof ProductsRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/inventory-ops': typeof InventoryOpsRoute
   '/login': typeof LoginRoute
   '/money': typeof MoneyRoute
+  '/opening-stock': typeof OpeningStockRoute
   '/packaging': typeof PackagingRoute
   '/pos': typeof PosRoute
   '/products': typeof ProductsRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/inventory-ops'
     | '/login'
     | '/money'
+    | '/opening-stock'
     | '/packaging'
     | '/pos'
     | '/products'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/inventory-ops'
     | '/login'
     | '/money'
+    | '/opening-stock'
     | '/packaging'
     | '/pos'
     | '/products'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/inventory-ops'
     | '/login'
     | '/money'
+    | '/opening-stock'
     | '/packaging'
     | '/pos'
     | '/products'
@@ -305,6 +317,7 @@ export interface RootRouteChildren {
   InventoryOpsRoute: typeof InventoryOpsRoute
   LoginRoute: typeof LoginRoute
   MoneyRoute: typeof MoneyRoute
+  OpeningStockRoute: typeof OpeningStockRoute
   PackagingRoute: typeof PackagingRoute
   PosRoute: typeof PosRoute
   ProductsRoute: typeof ProductsRoute
@@ -409,6 +422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MoneyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/opening-stock': {
+      id: '/opening-stock'
+      path: '/opening-stock'
+      fullPath: '/opening-stock'
+      preLoaderRoute: typeof OpeningStockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/packaging': {
       id: '/packaging'
       path: '/packaging'
@@ -489,6 +509,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryOpsRoute: InventoryOpsRoute,
   LoginRoute: LoginRoute,
   MoneyRoute: MoneyRoute,
+  OpeningStockRoute: OpeningStockRoute,
   PackagingRoute: PackagingRoute,
   PosRoute: PosRoute,
   ProductsRoute: ProductsRoute,

@@ -27,7 +27,7 @@ export const Route = createFileRoute("/inventory-ops")({
       { title: "Inventory Operations — PharmaNudge" },
       {
         name: "description",
-        content: "Current pharmacy stock quantities, shelves, batches and expiry dates.",
+        content: "Current pharmacy stock quantities, shelves, stock lots and stop-sale dates.",
       },
     ],
   }),
@@ -93,8 +93,10 @@ function InventoryOps() {
                   <TableHead className="text-right">Available</TableHead>
                   <TableHead className="text-right">Expired</TableHead>
                   <TableHead className="text-right">Expiring ≤ 30 days</TableHead>
-                  <TableHead>Batches · nearest expiry</TableHead>
-                  {canViewValues && <TableHead className="text-right">Purchase value</TableHead>}
+                  <TableHead>Stock lots · Nearest stop-sale date</TableHead>
+                  {canViewValues && (
+                    <TableHead className="text-right">Stock value at cost</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -175,16 +177,16 @@ function InventoryOps() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Batches</dt>
+                    <dt className="text-xs text-muted-foreground">Stock lots</dt>
                     <dd>{row.batch_count}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Nearest expiry</dt>
+                    <dt className="text-xs text-muted-foreground">Nearest stop-sale date</dt>
                     <dd>{formatInventoryDate(row.nearest_expiry)}</dd>
                   </div>
                   {canViewValues && (
                     <div>
-                      <dt className="text-xs text-muted-foreground">Purchase value</dt>
+                      <dt className="text-xs text-muted-foreground">Stock value at cost</dt>
                       <dd>{formatInventoryMoney(row.stock_value)}</dd>
                     </div>
                   )}
@@ -197,7 +199,7 @@ function InventoryOps() {
 
       <p className="text-xs text-muted-foreground">
         Quantities are shown in base units. Available stock excludes stock expiring today or
-        earlier. Nearest expiry includes expired batches that still hold stock.
+        earlier. Nearest stop-sale date includes unavailable stock lots that still hold stock.
         {asOfDate ? ` Expiry assessed as of ${formatInventoryDate(asOfDate)} in Lagos.` : ""}
       </p>
     </div>

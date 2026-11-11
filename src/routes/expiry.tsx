@@ -11,6 +11,7 @@ import {
   formatInventoryQuantity,
   sumInventoryValues,
 } from "@/lib/inventory-format";
+import { describeStockLot } from "@/lib/opening-stock-display";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/expiry")({
@@ -20,7 +21,7 @@ export const Route = createFileRoute("/expiry")({
       { title: "Expiry Center — PharmaNudge" },
       {
         name: "description",
-        content: "Real batch stock, expiry dates and stock value at risk.",
+        content: "Stock lots, stop-sale dates and stock value at risk.",
       },
     ],
   }),
@@ -46,25 +47,29 @@ function ExpiryCenter() {
 
   const query = search.trim().toLowerCase();
   const visible = batches.filter((batch) =>
-    [batch.product_name, batch.batch_number, batch.supplier_name].some((value) =>
-      value.toLowerCase().includes(query),
-    ),
+    [
+      batch.product_name,
+      batch.opening?.manufacturer_batch ?? "",
+      batch.opening?.internal_lot_reference ?? "",
+      batch.opening ? "Opening stock" : batch.batch_number,
+      batch.supplier_name,
+    ].some((value) => value.toLowerCase().includes(query)),
   );
 
   return (
     <div className="flex max-w-4xl flex-col gap-5">
       <PageHeader
         title="Expiry Center"
-        description="Remaining batch stock, sorted by expiry date."
+        description="Remaining stock lots, sorted by stop-sale date."
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <SummaryTile label="Expired batches" value={String(expired.length)} danger />
-        <SummaryTile label="Expire in 1–30 days" value={String(expiringSoon.length)} danger />
-        <SummaryTile label="Expire in 31–90 days" value={String(expiringLater.length)} />
+        <SummaryTile label="Unavailable stock lots" value={String(expired.length)} danger />
+        <SummaryTile label="Stop-sale in 1–30 days" value={String(expiringSoon.length)} danger />
+        <SummaryTile label="Stop-sale in 31–90 days" value={String(expiringLater.length)} />
         {canViewValues && (
           <SummaryTile
-            label="Expired + 30-day value at cost"
+            label="Unavailable + 30-day value at cost"
             value={formatInventoryMoney(atRiskValue)}
           />
         )}
@@ -73,19 +78,19 @@ function ExpiryCenter() {
       <Input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search product, batch or supplier"
-        aria-label="Search stock batches"
+        placeholder="Search product, lot reference, batch or supplier"
+        aria-label="Search stock lots"
       />
       <p className="text-xs text-muted-foreground">
-        Showing {visible.length} of {batches.length} remaining batches. Summary totals cover all
-        batches.
+        Showing {visible.length} of {batches.length} remaining stock lots. Summary totals cover all
+        stock lots.
       </p>
 
       {visible.length === 0 ? (
         <p className="rounded-xl border p-4 text-sm text-muted-foreground">
           {batches.length === 0
-            ? "No remaining stock batches yet. Confirm a stock receipt to add batches."
-            : "No batches match your search."}
+            ? "No remaining stock lots yet. Receive stock or record opening stock to add lots."
+            : "No stock lots match your search."}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -97,12 +102,7 @@ function ExpiryCenter() {
                 : days <= 90
                   ? "bg-warning/10 text-warning"
                   : "bg-success/10 text-success";
-            const expiryLabel =
-              days === 0
-                ? "Expired today"
-                : days < 0
-                  ? `Expired ${Math.abs(days)} days ago`
-                  : `${days} days remaining`;
+            const lot = describeStockLot(batch);
 
             return (
               <div key={batch.batch_id} className="rounded-xl border bg-card p-3.5">
@@ -110,25 +110,43 @@ function ExpiryCenter() {
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-sm font-semibold">{batch.product_name}</p>
                     <p className="break-words text-xs text-muted-foreground">
-                      Batch {batch.batch_number} · {batch.supplier_name}
+                      {lot.manufacturerBatch} · {lot.source}
                     </p>
+                    {lot.internalLotReference && (
+                      <p className="break-words text-xs text-muted-foreground">
+                        Internal lot reference: {lot.internalLotReference}
+                      </p>
+                    )}
                   </div>
                   <span
                     className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", urgency)}
                   >
-                    {expiryLabel}
+                    {lot.countdown}
                   </span>
                   {!batch.product_is_active && <Badge variant="outline">Inactive product</Badge>}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>Expires {formatInventoryDate(batch.expiry_date)}</span>
+                  {batch.opening ? (
+                    <>
+                      <span>Physical count: {formatInventoryDate(lot.physicalCountDate)}</span>
+                      <span>
+                        Expiry label ({lot.expiryPrecision}): {lot.expiryLabel}
+                      </span>
+                      {lot.usableThrough && (
+                        <span>Usable through {formatInventoryDate(lot.usableThrough)}</span>
+                      )}
+                      <span>Unavailable from {formatInventoryDate(lot.unavailableFrom)}</span>
+                    </>
+                  ) : (
+                    <span>Expires {formatInventoryDate(batch.expiry_date)}</span>
+                  )}
                   <span className="tabular-nums">
                     Remaining: {formatInventoryQuantity(batch.remaining_quantity)}{" "}
                     {batch.base_unit_label}
                   </span>
                   {canViewValues && (
                     <span className="tabular-nums">
-                      Value at cost: {formatInventoryMoney(batch.stock_value)}
+                      Stock value at cost: {formatInventoryMoney(batch.stock_value)}
                     </span>
                   )}
                 </div>
@@ -141,8 +159,10 @@ function ExpiryCenter() {
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
-          Quantities are shown in base units. Stock expiring today is treated as expired and
-          excluded from available inventory.
+          Quantities are shown in base units. Opening-stock stop-sale dates are exclusive:
+          month-labelled lots are usable through the labelled month, then unavailable from the first
+          day of the next month in Lagos. Day-labelled lots and legacy deliveries keep their
+          original day cutoff; stock is unavailable on that date.
           {batches[0]
             ? ` Expiry assessed as of ${formatInventoryDate(batches[0].as_of_date)} in Lagos.`
             : ""}

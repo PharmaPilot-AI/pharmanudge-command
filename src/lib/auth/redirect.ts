@@ -21,6 +21,7 @@ const ALLOWED_REDIRECTS = [
   "/pos",
   "/products",
   "/receive-stock",
+  "/opening-stock",
   "/reports",
   "/services",
   "/users",
